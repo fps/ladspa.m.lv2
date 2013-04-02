@@ -126,7 +126,7 @@ load_sample(Sampler* self, const char* path)
 	}
 
 	// Read data
-	float* const data = malloc(sizeof(float) * info->frames);
+	float* const data = (float*)malloc(sizeof(float) * info->frames);
 	if (!data) {
 		lv2_log_error(&self->logger, "Failed to allocate memory for sample\n");
 		return NULL;
@@ -186,7 +186,7 @@ work(LV2_Handle                  instance,
 		}
 
 		// Load sample.
-		Sample* sample = load_sample(self, LV2_ATOM_BODY_CONST(file_path));
+		Sample* sample = (Sample*)load_sample(self, (const char*)LV2_ATOM_BODY_CONST(file_path));
 		if (sample) {
 			// Loaded sample, send it to run() to be applied.
 			respond(handle, sizeof(sample), &sample);
@@ -274,10 +274,12 @@ instantiate(const LV2_Descriptor*     descriptor,
 	}
 	if (!self->map) {
 		lv2_log_error(&self->logger, "Missing feature urid:map\n");
-		goto fail;
+		free(self);
+		return 0;
 	} else if (!self->schedule) {
 		lv2_log_error(&self->logger, "Missing feature work:schedule\n");
-		goto fail;
+		free(self);
+		return 0;
 	}
 
 	// Map URIs and initialise forge/logger
@@ -295,10 +297,6 @@ instantiate(const LV2_Descriptor*     descriptor,
 	free(sample_path);
 
 	return (LV2_Handle)self;
-
-fail:
-	free(self);
-	return 0;
 }
 
 static void

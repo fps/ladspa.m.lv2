@@ -3,7 +3,7 @@ from waflib.extras import autowaf as autowaf
 import re
 
 # Variables for 'waf dist'
-APPNAME = 'eg-sampler.lv2'
+APPNAME = 'ladspa.m.lv2'
 VERSION = '1.0.0'
 
 # Mandatory variables
@@ -12,10 +12,12 @@ out = 'build'
 
 def options(opt):
     opt.load('compiler_c')
+    opt.load('compiler_cxx')
     autowaf.set_options(opt)
 
 def configure(conf):
     conf.load('compiler_c')
+    conf.load('compiler_cxx')
     autowaf.configure(conf)
     autowaf.set_c99_mode(conf)
     autowaf.display_header('Sampler Configuration')
@@ -23,8 +25,8 @@ def configure(conf):
     if not autowaf.is_child():
         autowaf.check_pkg(conf, 'lv2', atleast_version='1.2.1', uselib_store='LV2')
 
-    autowaf.check_pkg(conf, 'sndfile', uselib_store='SNDFILE',
-                      atleast_version='1.0.0', mandatory=True)
+    autowaf.check_pkg(conf, 'ladspam-0', uselib_store='LADSPAM',
+                      atleast_version='0.0.1', mandatory=True)
     autowaf.check_pkg(conf, 'gtk+-2.0', uselib_store='GTK2',
                       atleast_version='2.18.0', mandatory=False)
 
@@ -32,7 +34,7 @@ def configure(conf):
     print('')
 
 def build(bld):
-    bundle = 'eg-sampler.lv2'
+    bundle = 'ladspa.m.lv2'
 
     # Make a pattern for shared objects without the 'lib' prefix
     module_pat = re.sub('^lib', '', bld.env.cshlib_PATTERN)
@@ -46,7 +48,7 @@ def build(bld):
         LIB_EXT      = module_ext)
     
     # Copy other data files to build bundle (build/eg-sampler.lv2)
-    for i in ['sampler.ttl', 'click.wav']:
+    for i in ['synth.ttl']:
         bld(features     = 'subst',
             is_copy      = True,
             source       = i,
@@ -60,9 +62,9 @@ def build(bld):
 
     # Build plugin library
     obj = bld(features     = 'c cshlib',
-              source       = 'sampler.c',
-              name         = 'sampler',
-              target       = '%s/sampler' % bundle,
+              source       = 'synth.cc',
+              name         = 'synth',
+              target       = '%s/synth' % bundle,
               install_path = '${LV2DIR}/%s' % bundle,
               use          = 'SNDFILE LV2',
               includes     = includes)
@@ -71,9 +73,9 @@ def build(bld):
     # Build UI library
     if bld.is_defined('HAVE_GTK2'):
         obj = bld(features     = 'c cshlib',
-                  source       = 'sampler_ui.c',
-                  name         = 'sampler_ui',
-                  target       = '%s/sampler_ui' % bundle,
+                  source       = 'synth_ui.c',
+                  name         = 'synth_ui',
+                  target       = '%s/synth_ui' % bundle,
                   install_path = '${LV2DIR}/%s' % bundle,
                   use          = 'GTK2 LV2',
                   includes     = includes)
