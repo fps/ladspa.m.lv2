@@ -1,5 +1,5 @@
 /*
-  LV2 Sampler Example Plugin
+  LV2 Instrument Example Plugin
   Copyright 2011-2012 David Robillard <d@drobilla.net>
   Copyright 2011 Gabriel M. Beddingfield <gabriel@teuton.org>
   Copyright 2011 James Morris <jwm.art.net@gmail.com>
@@ -24,7 +24,12 @@
 #    include <stdbool.h>
 #endif
 
-#include <sndfile.h>
+#include <ladspam-0/synth.h>
+#include <ladspam.pb.h>
+#include <vector>
+#include <boost/shared_ptr.hpp>
+#include <stdint.h>
+
 
 #include "lv2/lv2plug.in/ns/ext/atom/forge.h"
 #include "lv2/lv2plug.in/ns/ext/atom/util.h"
@@ -40,19 +45,61 @@
 #include "./uris.h"
 
 enum {
-	SAMPLER_CONTROL = 0,
-	SAMPLER_NOTIFY  = 1,
-	SAMPLER_OUT     = 2
+	INSTRUMENT_CONTROL = 0,
+	INSTRUMENT_NOTIFY  = 1,
+	INSTRUMENT_OUT     = 2
 };
 
-static const char* default_sample_file = "click.wav";
+struct voice
+{
+	float m_gate;
+	unsigned m_note;
+	unsigned m_on_velocity;
+	unsigned m_off_velocity;
+	uint64_t m_start_frame;
+	std::vector<ladspam::synth::buffer_ptr> m_port_buffers;
+	
+	voice(unsigned control_period) :
+		m_gate(0.0),
+		m_note(0),
+		m_on_velocity(0),
+		m_off_velocity(0),
+		m_start_frame(0)
+	{
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			buffer->resize(control_period);
+			m_port_buffers.push_back(buffer);
+		}
 
-typedef struct {
-	SF_INFO info;      // Info about sample from sndfile
-	float*  data;      // Sample data in float
-	char*   path;      // Path of file
-	size_t  path_len;  // Length of path
-} Sample;
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			buffer->resize(control_period);
+			m_port_buffers.push_back(buffer);
+		}
+
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			buffer->resize(control_period);
+			m_port_buffers.push_back(buffer);
+		}
+
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			buffer->resize(control_period);
+			m_port_buffers.push_back(buffer);
+		}
+
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			buffer->resize(control_period);
+			m_port_buffers.push_back(buffer);
+		}
+	}
+};
+
+
+typedef boost::shared_ptr<voice> voice_ptr;
 
 typedef struct {
 	// Features
@@ -67,7 +114,7 @@ typedef struct {
 	LV2_Log_Logger logger;
 
 	// Sample
-	Sample* sample;
+	ladspam::synth *synth;
 
 	// Ports
 	const LV2_Atom_Sequence* control_port;
@@ -78,15 +125,15 @@ typedef struct {
 	LV2_Atom_Forge_Frame notify_frame;
 
 	// URIs
-	SamplerURIs uris;
+	InstrumentURIs uris;
 
 	// Current position in run()
 	uint32_t frame_offset;
 
-	// Playback state
-	sf_count_t frame;
-	bool       play;
-} Sampler;
+	std::vector<voice_ptr> m_voices;
+} Instrument;
+
+
 
 /**
    An atom-like message used internally to apply/free samples.
@@ -98,7 +145,7 @@ typedef struct {
 */
 typedef struct {
 	LV2_Atom atom;
-	Sample*  sample;
+	ladspam::synth*  sample;
 } SampleMessage;
 
 /**
@@ -108,14 +155,16 @@ typedef struct {
    worker thread only.  The sample is loaded and returned only, plugin state is
    not modified.
 */
-static Sample*
-load_sample(Sampler* self, const char* path)
+static Instrument*
+load_instrument(Instrument* self, const char* path)
 {
 	const size_t path_len  = strlen(path);
 
 	lv2_log_trace(&self->logger, "Loading sample %s\n", path);
 
-	Sample* const  sample  = (Sample*)malloc(sizeof(Sample));
+	ladspam::synth * synth = new ladspam::synth(self->samplerate);
+	
+	Instrument* const  sample  = (Sample*)malloc(sizeof(Sample));
 	SF_INFO* const info    = &sample->info;
 	SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
 
@@ -145,7 +194,7 @@ load_sample(Sampler* self, const char* path)
 }
 
 static void
-free_sample(Sampler* self, Sample* sample)
+free_sample(Instrument* self, Sample* sample)
 {
 	if (sample) {
 		lv2_log_trace(&self->logger, "Freeing %s\n", sample->path);
@@ -169,7 +218,7 @@ work(LV2_Handle                  instance,
      uint32_t                    size,
      const void*                 data)
 {
-	Sampler*        self = (Sampler*)instance;
+	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
 	if (atom->type == self->uris.eg_freeSample) {
 		// Free old sample
@@ -208,7 +257,7 @@ work_response(LV2_Handle  instance,
               uint32_t    size,
               const void* data)
 {
-	Sampler* self = (Sampler*)instance;
+	Instrument* self = (Instrument*)instance;
 
 	SampleMessage msg = { { sizeof(Sample*), self->uris.eg_freeSample },
 	                      self->sample };
@@ -233,7 +282,7 @@ connect_port(LV2_Handle instance,
              uint32_t   port,
              void*      data)
 {
-	Sampler* self = (Sampler*)instance;
+	Instrument* self = (Instrument*)instance;
 	switch (port) {
 	case SAMPLER_CONTROL:
 		self->control_port = (const LV2_Atom_Sequence*)data;
@@ -256,11 +305,11 @@ instantiate(const LV2_Descriptor*     descriptor,
             const LV2_Feature* const* features)
 {
 	// Allocate and initialise instance structure.
-	Sampler* self = (Sampler*)malloc(sizeof(Sampler));
+	Instrument* self = (Instrument*)malloc(sizeof(Instrument));
 	if (!self) {
 		return NULL;
 	}
-	memset(self, 0, sizeof(Sampler));
+	memset(self, 0, sizeof(Instrument));
 
 	// Get host features
 	for (int i = 0; features[i]; ++i) {
@@ -302,7 +351,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 static void
 cleanup(LV2_Handle instance)
 {
-	Sampler* self = (Sampler*)instance;
+	Instrument* self = (Instrument*)instance;
 	free_sample(self, self->sample);
 	free(self);
 }
@@ -311,8 +360,8 @@ static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
-	Sampler*     self        = (Sampler*)instance;
-	SamplerURIs* uris        = &self->uris;
+	Instrument*     self        = (Instrument*)instance;
+	InstrumentURIs* uris        = &self->uris;
 	sf_count_t   start_frame = 0;
 	sf_count_t   pos         = 0;
 	float*       output      = self->output_port;
@@ -391,7 +440,7 @@ save(LV2_Handle                instance,
      uint32_t                  flags,
      const LV2_Feature* const* features)
 {
-	Sampler* self = (Sampler*)instance;
+	Instrument* self = (Instrument*)instance;
 	if (!self->sample) {
 		return LV2_STATE_SUCCESS;
 	}
@@ -424,7 +473,7 @@ restore(LV2_Handle                  instance,
         uint32_t                    flags,
         const LV2_Feature* const*   features)
 {
-	Sampler* self = (Sampler*)instance;
+	Instrument* self = (Instrument*)instance;
 
 	size_t   size;
 	uint32_t type;
