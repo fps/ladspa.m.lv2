@@ -48,7 +48,7 @@ def build(bld):
         LIB_EXT      = module_ext)
     
     # Copy other data files to build bundle (build/eg-sampler.lv2)
-    for i in ['synth.ttl']:
+    for i in ['instrument.ttl']:
         bld(features     = 'subst',
             is_copy      = True,
             source       = i,
@@ -62,9 +62,9 @@ def build(bld):
 
     # Build plugin library
     obj = bld(features     = 'c cshlib',
-              source       = 'synth.cc',
-              name         = 'synth',
-              target       = '%s/synth' % bundle,
+              source       = 'instrument.cc',
+              name         = 'instrument',
+              target       = '%s/instrument' % bundle,
               install_path = '${LV2DIR}/%s' % bundle,
               use          = 'SNDFILE LV2',
               includes     = includes)
@@ -73,9 +73,9 @@ def build(bld):
     # Build UI library
     if bld.is_defined('HAVE_GTK2'):
         obj = bld(features     = 'c cshlib',
-                  source       = 'synth_ui.c',
-                  name         = 'synth_ui',
-                  target       = '%s/synth_ui' % bundle,
+                  source       = 'instrument_ui.c',
+                  name         = 'instrument_ui',
+                  target       = '%s/instrument_ui' % bundle,
                   install_path = '${LV2DIR}/%s' % bundle,
                   use          = 'GTK2 LV2',
                   includes     = includes)

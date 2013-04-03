@@ -8,14 +8,14 @@
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
 
-<http://fps.io/lv2-plugins/ladspa.m.synth#synth_pb>
+<http://fps.io/lv2-plugins/ladspa.m.instrument#instrument_pb>
 	a lv2:Parameter ;
 	rdfs:label "ladspa.m.proto" ;
 	rdfs:range atom:Path .
 
-<http://fps.io/lv2-plugins/ladspa.m.synth>
+<http://fps.io/lv2-plugins/ladspa.m.instrument>
 	a lv2:Plugin ;
-	doap:name "ladspa.m.synth" ;
+	doap:name "ladspa.m.instrument" ;
 	doap:license <http://opensource.org/licenses/isc> ;
 	lv2:project <http://lv2plug.in/ns/lv2> ;
 	lv2:requiredFeature urid:map ,
@@ -24,8 +24,8 @@
 		state:loadDefaultState ;
 	lv2:extensionData state:interface ,
 		work:interface ;
-	ui:ui <http://fps.io/lv2-plugins/ladspa.m.synth#ui> ;
-	patch:writable <http://fps.io/lv2-plugins/ladspa.m.synth#synth_pb> ;
+	ui:ui <http://fps.io/lv2-plugins/ladspa.m.instrument#ui> ;
+	patch:writable <http://fps.io/lv2-plugins/ladspa.m.instrument#instrument_pb> ;
 	lv2:port [
 		a lv2:InputPort ,
 			atom:AtomPort ;
@@ -71,14 +71,14 @@
 		lv2:name "Out2"
 	] ;
 	state:state [
-		<http://fps.io/lv2-plugins/ladspa.m.synth#synth_pb> <click.wav>
+		<http://fps.io/lv2-plugins/ladspa.m.instrument#instrument_pb> <click.wav>
 	] .
 
-<http://fps.io/lv2-plugins/ladspa.m.synth#ui>
+<http://fps.io/lv2-plugins/ladspa.m.instrument#ui>
 	a ui:GtkUI ;
 	lv2:requiredFeature urid:map ;
 	ui:portNotification [
-		ui:plugin <http://fps.io/lv2-plugins/ladspa.m.synth> ;
+		ui:plugin <http://fps.io/lv2-plugins/ladspa.m.instrument> ;
 		lv2:symbol "notify" ;
 		ui:notifyType atom:Blank
 	] .

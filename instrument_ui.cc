@@ -32,7 +32,7 @@
 
 #include "./uris.h"
 
-#define SAMPLER_UI_URI "http://fps.io/lv2-plugins/ladspa.m.synth#ui"
+#define SAMPLER_UI_URI "http://fps.io/lv2-plugins/ladspa.m.instrument#ui"
 
 typedef struct {
 	LV2_Atom_Forge forge;
