@@ -22,7 +22,7 @@
 #include "lv2/lv2plug.in/ns/ext/midi/midi.h"
 #include "lv2/lv2plug.in/ns/ext/state/state.h"
 
-#define INSTRUMENT_URI          "http://lv2plug.in/plugins/eg-sampler"
+#define INSTRUMENT_URI          "http://fps.io/lv2-plugins/ladspam.m.instrumen"
 #define INSTRUMENT__sample      INSTRUMENT_URI "#sample"
 #define INSTRUMENT__applySample INSTRUMENT_URI "#applySample"
 #define INSTRUMENT__freeSample  INSTRUMENT_URI "#freeSample"
