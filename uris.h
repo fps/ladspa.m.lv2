@@ -15,17 +15,17 @@
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
-#ifndef SAMPLER_URIS_H
-#define SAMPLER_URIS_H
+#ifndef INSTRUMENT_URIS_H
+#define INSTRUMENT_URIS_H
 
 #include "lv2/lv2plug.in/ns/ext/log/log.h"
 #include "lv2/lv2plug.in/ns/ext/midi/midi.h"
 #include "lv2/lv2plug.in/ns/ext/state/state.h"
 
-#define INSTRUMENT_URI          "http://lv2plug.in/plugins/eg-sampler"
-#define INSTRUMENT__sample      INSTRUMENT_URI "#sample"
-#define INSTRUMENT__applySample INSTRUMENT_URI "#applySample"
-#define INSTRUMENT__freeSample  INSTRUMENT_URI "#freeSample"
+#define INSTRUMENT_URI              "http://fps.io/lv2-plugins/ladspa.m.instrument"
+#define INSTRUMENT__instrument      INSTRUMENT_URI "#instrument"
+#define INSTRUMENT__applyInstrument INSTRUMENT_URI "#applyInstrument"
+#define INSTRUMENT__freeInstrument  INSTRUMENT_URI "#freeInstrumen"
 
 typedef struct {
 	LV2_URID atom_Blank;
@@ -34,17 +34,17 @@ typedef struct {
 	LV2_URID atom_Sequence;
 	LV2_URID atom_URID;
 	LV2_URID atom_eventTransfer;
-	LV2_URID eg_applySample;
-	LV2_URID eg_sample;
-	LV2_URID eg_freeSample;
+	LV2_URID applyInstrument;
+	LV2_URID instrument;
+	LV2_URID freeInstrument;
 	LV2_URID midi_Event;
 	LV2_URID patch_Set;
 	LV2_URID patch_property;
 	LV2_URID patch_value;
-} SamplerURIs;
+} InstrumentURIs;
 
 static inline void
-map_sampler_uris(LV2_URID_Map* map, SamplerURIs* uris)
+map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 {
 	uris->atom_Blank         = map->map(map->handle, LV2_ATOM__Blank);
 	uris->atom_Path          = map->map(map->handle, LV2_ATOM__Path);
@@ -52,9 +52,9 @@ map_sampler_uris(LV2_URID_Map* map, SamplerURIs* uris)
 	uris->atom_Sequence      = map->map(map->handle, LV2_ATOM__Sequence);
 	uris->atom_URID          = map->map(map->handle, LV2_ATOM__URID);
 	uris->atom_eventTransfer = map->map(map->handle, LV2_ATOM__eventTransfer);
-	uris->eg_applySample     = map->map(map->handle, INSTRUMENT__applySample);
-	uris->eg_freeSample      = map->map(map->handle, INSTRUMENT__freeSample);
-	uris->eg_sample          = map->map(map->handle, INSTRUMENT__sample);
+	uris->applyInstrument    = map->map(map->handle, INSTRUMENT__applyInstrument);
+	uris->freeInstrument     = map->map(map->handle, INSTRUMENT__freeInstrument);
+	uris->instrument         = map->map(map->handle, INSTRUMENT__instrument);
 	uris->midi_Event         = map->map(map->handle, LV2_MIDI__MidiEvent);
 	uris->patch_Set          = map->map(map->handle, LV2_PATCH__Set);
 	uris->patch_property     = map->map(map->handle, LV2_PATCH__property);
@@ -62,7 +62,7 @@ map_sampler_uris(LV2_URID_Map* map, SamplerURIs* uris)
 }
 
 static inline bool
-is_object_type(const SamplerURIs* uris, LV2_URID type)
+is_object_type(const InstrumentURIs* uris, LV2_URID type)
 {
 	return type == uris->atom_Resource
 		|| type == uris->atom_Blank;
@@ -76,17 +76,17 @@ is_object_type(const SamplerURIs* uris, LV2_URID type)
  *     patch:value </home/me/foo.wav> .
  */
 static inline LV2_Atom*
-write_set_file(LV2_Atom_Forge*    forge,
-               const SamplerURIs* uris,
-               const char*        filename,
-               const size_t       filename_len)
+write_set_file(LV2_Atom_Forge*       forge,
+               const InstrumentURIs* uris,
+               const char*           filename,
+               const size_t          filename_len)
 {
 	LV2_Atom_Forge_Frame frame;
 	LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_blank(
 		forge, &frame, 1, uris->patch_Set);
 
 	lv2_atom_forge_property_head(forge, uris->patch_property, 0);
-	lv2_atom_forge_urid(forge, uris->eg_sample);
+	lv2_atom_forge_urid(forge, uris->instrument);
 	lv2_atom_forge_property_head(forge, uris->patch_value, 0);
 	lv2_atom_forge_path(forge, filename, filename_len);
 
@@ -103,8 +103,8 @@ write_set_file(LV2_Atom_Forge*    forge,
  *     patch:value </home/me/foo.wav> .
  */
 static inline const LV2_Atom*
-read_set_file(const SamplerURIs*     uris,
-              const LV2_Atom_Object* obj)
+read_set_file(const InstrumentURIs*     uris,
+              const LV2_Atom_Object*    obj)
 {
 	if (obj->body.otype != uris->patch_Set) {
 		fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
@@ -120,7 +120,7 @@ read_set_file(const SamplerURIs*     uris,
 	} else if (property->type != uris->atom_URID) {
 		fprintf(stderr, "Malformed set message has non-URID property.\n");
 		return NULL;
-	} else if (((LV2_Atom_URID*)property)->body != uris->eg_sample) {
+	} else if (((LV2_Atom_URID*)property)->body != uris->instrument) {
 		fprintf(stderr, "Set message for unknown property.\n");
 		return NULL;
 	}
@@ -139,4 +139,4 @@ read_set_file(const SamplerURIs*     uris,
 	return file_path;
 }
 
-#endif  /* SAMPLER_URIS_H */
+#endif  /* INSTRUMENT_URIS_H */
