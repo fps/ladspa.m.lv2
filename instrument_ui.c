@@ -38,7 +38,7 @@ typedef struct {
 	LV2_Atom_Forge forge;
 
 	LV2_URID_Map* map;
-	SamplerURIs   uris;
+	InstrumentURIs   uris;
 
 	LV2UI_Write_Function write;
 	LV2UI_Controller     controller;

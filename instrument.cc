@@ -45,9 +45,12 @@
 #include "./uris.h"
 
 enum {
-	INSTRUMENT_CONTROL = 0,
-	INSTRUMENT_NOTIFY  = 1,
-	INSTRUMENT_OUT     = 2
+	INSTRUMENT_CONTROL    = 0,
+	INSTRUMENT_NOTIFY     = 1,
+	INSTRUMENT_AUDIO_IN1  = 2,
+	INSTRUMENT_AUDIO_IN2  = 3,
+	INSTRUMENT_AUDIO_OUT1 = 4,
+	INSTRUMENT_AUDIO_OUT2 = 5
 };
 
 struct voice
@@ -99,6 +102,13 @@ struct voice
 };
 
 
+
+struct MInstrument {
+	ladspam::synth *synth;
+	char *path;
+	unsigned path_len;
+};
+
 typedef boost::shared_ptr<voice> voice_ptr;
 
 typedef struct {
@@ -113,13 +123,15 @@ typedef struct {
 	// Logger convenience API
 	LV2_Log_Logger logger;
 
-	// Sample
-	ladspam::synth *synth;
+	MInstrument *instrument;
 
 	// Ports
 	const LV2_Atom_Sequence* control_port;
 	LV2_Atom_Sequence*       notify_port;
-	float*                   output_port;
+	float*                   input_port1;
+	float*                   input_port2;
+	float*                   output_port1;
+	float*                   output_port2;
 
 	// Forge frame for notify port (for writing worker replies)
 	LV2_Atom_Forge_Frame notify_frame;
@@ -130,11 +142,9 @@ typedef struct {
 	// Current position in run()
 	uint32_t frame_offset;
 
+	unsigned long samplerate;
 	std::vector<voice_ptr> m_voices;
 } Instrument;
-
-
-
 /**
    An atom-like message used internally to apply/free samples.
 
@@ -145,8 +155,8 @@ typedef struct {
 */
 typedef struct {
 	LV2_Atom atom;
-	ladspam::synth*  sample;
-} SampleMessage;
+	MInstrument *instrument;
+} InstrumentMessage;
 
 /**
    Load a new sample and return it.
@@ -155,52 +165,32 @@ typedef struct {
    worker thread only.  The sample is loaded and returned only, plugin state is
    not modified.
 */
-static Instrument*
+static MInstrument*
 load_instrument(Instrument* self, const char* path)
 {
 	const size_t path_len  = strlen(path);
 
-	lv2_log_trace(&self->logger, "Loading sample %s\n", path);
-
-	ladspam::synth * synth = new ladspam::synth(self->samplerate);
+	lv2_log_trace(&self->logger, "Loading instrument %s\n", path);
 	
-	Instrument* const  sample  = (Sample*)malloc(sizeof(Sample));
-	SF_INFO* const info    = &sample->info;
-	SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
+	MInstrument* instrument  = new MInstrument;
 
-	if (!sndfile || !info->frames || (info->channels != 1)) {
-		lv2_log_error(&self->logger, "Failed to open sample '%s'\n", path);
-		free(sample);
-		return NULL;
-	}
+	ladspam::synth * synth = new ladspam::synth(self->samplerate, 8);
+	instrument->synth = synth;
+	instrument->path     = (char*)malloc(path_len + 1);
+	instrument->path_len = path_len;
+	memcpy(instrument->path, path, path_len + 1);
 
-	// Read data
-	float* const data = (float*)malloc(sizeof(float) * info->frames);
-	if (!data) {
-		lv2_log_error(&self->logger, "Failed to allocate memory for sample\n");
-		return NULL;
-	}
-	sf_seek(sndfile, 0ul, SEEK_SET);
-	sf_read_float(sndfile, data, info->frames);
-	sf_close(sndfile);
-
-	// Fill sample struct and return it
-	sample->data     = data;
-	sample->path     = (char*)malloc(path_len + 1);
-	sample->path_len = path_len;
-	memcpy(sample->path, path, path_len + 1);
-
-	return sample;
+	return instrument;
 }
 
 static void
-free_sample(Instrument* self, Sample* sample)
+free_instrument(Instrument* self, MInstrument *instrument)
 {
-	if (sample) {
-		lv2_log_trace(&self->logger, "Freeing %s\n", sample->path);
-		free(sample->path);
-		free(sample->data);
-		free(sample);
+	if (instrument) {
+		lv2_log_trace(&self->logger, "Freeing %s\n", instrument->path);
+		delete instrument->synth;
+		free(instrument->path);
+		delete instrument;
 	}
 }
 
@@ -220,10 +210,9 @@ work(LV2_Handle                  instance,
 {
 	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
-	if (atom->type == self->uris.eg_freeSample) {
-		// Free old sample
-		const SampleMessage* msg = (const SampleMessage*)data;
-		free_sample(self, msg->sample);
+	if (atom->type == self->uris.freeInstrument) {
+		const InstrumentMessage* msg = (const InstrumentMessage*)data;
+		free_instrument(self, msg->instrument);
 	} else {
 		// Handle set message (load sample).
 		const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
@@ -235,10 +224,10 @@ work(LV2_Handle                  instance,
 		}
 
 		// Load sample.
-		Sample* sample = (Sample*)load_sample(self, (const char*)LV2_ATOM_BODY_CONST(file_path));
-		if (sample) {
+		MInstrument* instrument = (MInstrument*)load_instrument(self, (const char*)LV2_ATOM_BODY_CONST(file_path));
+		if (instrument) {
 			// Loaded sample, send it to run() to be applied.
-			respond(handle, sizeof(sample), &sample);
+			respond(handle, sizeof(instrument), &instrument);
 		}
 	}
 
@@ -259,20 +248,20 @@ work_response(LV2_Handle  instance,
 {
 	Instrument* self = (Instrument*)instance;
 
-	SampleMessage msg = { { sizeof(Sample*), self->uris.eg_freeSample },
-	                      self->sample };
+	InstrumentMessage msg = { { sizeof(MInstrument*), self->uris.freeInstrument },
+	                      self->instrument };
 
 	// Send a message to the worker to free the current sample
 	self->schedule->schedule_work(self->schedule->handle, sizeof(msg), &msg);
 
 	// Install the new sample
-	self->sample = *(Sample*const*)data;
+	self->instrument = *(MInstrument*const*)data;
 
 	// Send a notification that we're using a new sample.
 	lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
 	write_set_file(&self->forge, &self->uris,
-	               self->sample->path,
-	               self->sample->path_len);
+	               self->instrument->path,
+	               self->instrument->path_len);
 
 	return LV2_WORKER_SUCCESS;
 }
@@ -284,14 +273,23 @@ connect_port(LV2_Handle instance,
 {
 	Instrument* self = (Instrument*)instance;
 	switch (port) {
-	case SAMPLER_CONTROL:
+	case INSTRUMENT_CONTROL:
 		self->control_port = (const LV2_Atom_Sequence*)data;
 		break;
-	case SAMPLER_NOTIFY:
+	case INSTRUMENT_NOTIFY:
 		self->notify_port = (LV2_Atom_Sequence*)data;
 		break;
-	case SAMPLER_OUT:
-		self->output_port = (float*)data;
+	case INSTRUMENT_AUDIO_IN1:
+		self->input_port1 = (float*)data;
+		break;
+	case INSTRUMENT_AUDIO_IN2:
+		self->input_port2 = (float*)data;
+		break;
+	case INSTRUMENT_AUDIO_OUT1:
+		self->output_port1 = (float*)data;
+		break;
+	case INSTRUMENT_AUDIO_OUT2:
+		self->output_port2 = (float*)data;
 		break;
 	default:
 		break;
@@ -336,14 +334,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 	lv2_atom_forge_init(&self->forge, self->map);
 	lv2_log_logger_init(&self->logger, self->map, self->log);
 
-	// Load the default sample file
-	const size_t path_len    = strlen(path);
-	const size_t file_len    = strlen(default_sample_file);
-	const size_t len         = path_len + file_len;
-	char*        sample_path = (char*)malloc(len + 1);
-	snprintf(sample_path, len + 1, "%s%s", path, default_sample_file);
-	self->sample = load_sample(self, sample_path);
-	free(sample_path);
+	self->instrument = 0;
 
 	return (LV2_Handle)self;
 }
@@ -352,7 +343,9 @@ static void
 cleanup(LV2_Handle instance)
 {
 	Instrument* self = (Instrument*)instance;
-	free_sample(self, self->sample);
+	
+	if (self->instrument)
+		free_instrument(self, self->instrument);
 	free(self);
 }
 
