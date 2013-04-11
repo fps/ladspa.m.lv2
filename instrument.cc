@@ -434,7 +434,7 @@ save(LV2_Handle                instance,
      const LV2_Feature* const* features)
 {
 	Instrument* self = (Instrument*)instance;
-	if (!self->sample) {
+	if (!self->instrument) {
 		return LV2_STATE_SUCCESS;
 	}
 
@@ -445,12 +445,12 @@ save(LV2_Handle                instance,
 		}
 	}
 
-	char* apath = map_path->abstract_path(map_path->handle, self->sample->path);
+	char* apath = map_path->abstract_path(map_path->handle, self->instrument->path);
 
 	store(handle,
-	      self->uris.eg_sample,
+	      self->uris.instrument,
 	      apath,
-	      strlen(self->sample->path) + 1,
+	      strlen(self->instrument->path) + 1,
 	      self->uris.atom_Path,
 	      LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
@@ -474,14 +474,14 @@ restore(LV2_Handle                  instance,
 
 	const void* value = retrieve(
 		handle,
-		self->uris.eg_sample,
+		self->uris.instrument,
 		&size, &type, &valflags);
 
 	if (value) {
 		const char* path = (const char*)value;
 		lv2_log_trace(&self->logger, "Restoring file %s\n", path);
-		free_sample(self, self->sample);
-		self->sample = load_sample(self, path);
+		free_instrument(self, self->instrument);
+		self->instrument = load_instrument(self, path);
 	}
 
 	return LV2_STATE_SUCCESS;
@@ -501,7 +501,7 @@ extension_data(const char* uri)
 }
 
 static const LV2_Descriptor descriptor = {
-	EG_SAMPLER_URI,
+	INSTRUMENT_URI,
 	instantiate,
 	connect_port,
 	NULL,  // activate,
