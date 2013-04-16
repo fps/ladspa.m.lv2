@@ -59,57 +59,62 @@ struct voice
 	unsigned m_note;
 	unsigned m_on_velocity;
 	unsigned m_off_velocity;
-	uint64_t m_start_frame;
+	float m_note_frequency;
+	unsigned m_start_frame;
 	std::vector<ladspam::synth::buffer_ptr> m_port_buffers;
+	std::vector<ladspam::synth::buffer *> m_port_buffers_raw;
 	
 	voice(unsigned control_period) :
 		m_gate(0.0),
 		m_note(0),
 		m_on_velocity(0),
 		m_off_velocity(0),
+		m_note_frequency(0),
 		m_start_frame(0)
 	{
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
+			m_port_buffers_raw.push_back(buffer.get());
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
+			m_port_buffers_raw.push_back(buffer.get());
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
+			m_port_buffers_raw.push_back(buffer.get());
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
+			m_port_buffers_raw.push_back(buffer.get());
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
+			m_port_buffers_raw.push_back(buffer.get());
 		}
 	}
 };
 
-
-
 struct MInstrument {
-	ladspam::synth *synth;
+	ladspam::synth_ptr synth;
+	std::vector<voice> m_voices;
 	char *path;
 	unsigned path_len;
 };
-
-typedef boost::shared_ptr<voice> voice_ptr;
 
 typedef struct {
 	// Features
@@ -143,7 +148,6 @@ typedef struct {
 	uint32_t frame_offset;
 
 	unsigned long samplerate;
-	std::vector<voice_ptr> m_voices;
 } Instrument;
 /**
    An atom-like message used internally to apply/free samples.
@@ -174,7 +178,7 @@ load_instrument(Instrument* self, const char* path)
 	
 	MInstrument* instrument  = new MInstrument;
 
-	ladspam::synth * synth = new ladspam::synth(self->samplerate, 8);
+	ladspam::synth_ptr synth(new ladspam::synth(self->samplerate, 8));
 	instrument->synth = synth;
 	instrument->path     = (char*)malloc(path_len + 1);
 	instrument->path_len = path_len;
@@ -188,7 +192,6 @@ free_instrument(Instrument* self, MInstrument *instrument)
 {
 	if (instrument) {
 		lv2_log_trace(&self->logger, "Freeing %s\n", instrument->path);
-		delete instrument->synth;
 		free(instrument->path);
 		delete instrument;
 	}
