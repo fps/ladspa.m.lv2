@@ -149,6 +149,7 @@ typedef struct {
 
 	unsigned long samplerate;
 } Instrument;
+
 /**
    An atom-like message used internally to apply/free samples.
 
