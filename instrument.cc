@@ -357,6 +357,7 @@ static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
+#if 0
 	Instrument*     self        = (Instrument*)instance;
 	InstrumentURIs* uris        = &self->uris;
 	sf_count_t   start_frame = 0;
@@ -428,6 +429,7 @@ run(LV2_Handle instance,
 	for (; pos < sample_count; ++pos) {
 		output[pos] = 0.0f;
 	}
+#endif
 }
 
 static LV2_State_Status
