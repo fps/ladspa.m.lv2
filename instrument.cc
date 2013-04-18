@@ -213,42 +213,40 @@ typedef struct {
 static MInstrument*
 load_instrument(Instrument* self, const char* path)
 {
-	// std::cout << "Loading instrument: " << path << std::endl;
-	
 	const size_t path_len  = strlen(path);
 
-	lv2_log_trace(&self->logger, "Loading instrument %s\n", path);
+	std::cout << "Loading instrument %s\n" << path << std::endl;
 	
-	ladspam_pb::Instrument instrument_pb;
-	std::ifstream input_file(path, std::ios::in | std::ios::binary);
-	
-	if (false == input_file.good())
-	{
-		std::cout << "Failed to open input stream" << std::endl;
-		return 0;
-	}
-		
-	
-	if (false == instrument_pb.ParseFromIstream(&input_file))
-	{
-		std::cout << "Failed to parse instrument definition file" << std::endl;
-		return 0;
-	}
-	
-	MInstrument* instrument  = new MInstrument;
-
 	try {
+		ladspam_pb::Instrument instrument_pb;
+		std::ifstream input_file(path, std::ios::in | std::ios::binary);
+		
+		if (false == input_file.good())
+		{
+			std::cout << "Failed to open input stream" << std::endl;
+			return 0;
+		}
+			
+		
+		if (false == instrument_pb.ParseFromIstream(&input_file))
+		{
+			std::cout << "Failed to parse instrument definition file" << std::endl;
+			return 0;
+		}
+		
+		MInstrument* instrument  = new MInstrument;
+
 		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
 		lv2_log_trace(&self->logger, "Succeeded to load instrument\n");
 
 		instrument->synth = synth;
 		instrument->path  = path;
+		
+		return instrument;
 	} catch (std::exception &e) {
-		lv2_log_trace(&self->logger, "Failed to load instrument\n");
+		std::cout << "Ouch: " << e.what() << std::endl;
 		return 0;
 	}
-	
-	return instrument;
 }
 
 static void
@@ -274,6 +272,8 @@ work(LV2_Handle                  instance,
      uint32_t                    size,
      const void*                 data)
 {
+	std::cout << ",,," << std::endl;
+	
 	lv2_log_trace(&((Instrument*)instance)->logger, "Loading instrument - work \n");
 
 	Instrument*        self = (Instrument*)instance;
@@ -406,6 +406,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 	lv2_log_logger_init(&self->logger, self->map, self->log);
 
 	self->instrument = 0;
+	self->samplerate = rate;
 
 	return (LV2_Handle)self;
 }
