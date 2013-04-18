@@ -45,6 +45,73 @@
 
 #include "./uris.h"
 
+#include <execinfo.h>
+#include <cxxabi.h>
+
+static std::string
+symbol_demangle (const std::string& l)
+{
+	int status;
+
+	try {
+		char* realname = abi::__cxa_demangle (l.c_str(), 0, 0, &status);
+		std::string d (realname);
+		free (realname);
+	return d;
+	} catch (std::exception) {
+
+	}
+
+	return l;
+}
+std::string demangle (std::string const & l)
+{
+	std::string::size_type const b = l.find_first_of ("(");
+
+	if (b == std::string::npos) {
+		return symbol_demangle (l);
+	}
+
+	std::string::size_type const p = l.find_last_of ("+");
+	if (p == std::string::npos) {
+	return symbol_demangle (l);
+	}
+
+	if ((p - b) <= 1) {
+	return symbol_demangle (l);
+	}
+
+	std::string const fn = l.substr (b + 1, p - b - 1);
+
+	return symbol_demangle (fn);
+}
+
+void stacktrace (std::ostream& out, int levels)
+{
+	void *array[200];
+	size_t size;
+	char **strings;
+	size_t i;
+		
+	size = backtrace (array, 200);
+
+	if (size) {
+		strings = backtrace_symbols (array, size);
+			
+		if (strings) {
+
+			for (i = 0; i < size && (levels == 0 || i < size_t(levels)); i++) {
+				out << " " << demangle (strings[i]) << std::endl;
+			}
+
+			free (strings);
+		}
+	} else {
+		out << "no stacktrace available!" << std::endl;
+	}
+}
+
+
 enum {
 	INSTRUMENT_CONTROL    = 0,
 	INSTRUMENT_NOTIFY     = 1,
@@ -56,11 +123,14 @@ enum {
 
 ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sample_rate, unsigned control_period)
 {
+	std::cout << "Building synth..." << std::endl;
 	ladspam::synth_ptr the_synth(new ladspam::synth(sample_rate, control_period));
 	
 	for (unsigned plugin_index = 0; plugin_index < synth_pb.plugins_size(); ++plugin_index)
 	{
 		ladspam_pb::Plugin plugin_pb = synth_pb.plugins(plugin_index);
+		
+		std::cout << "Adding plugin: " << the_synth->find_plugin_library(plugin_pb.label()) << " " << plugin_pb.label() << std::endl;
 		
 		the_synth->append_plugin
 		(
@@ -93,6 +163,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 	
 	return the_synth;
 }
+
 
 struct voice
 {
@@ -151,10 +222,38 @@ struct voice
 };
 
 struct MInstrument {
-	ladspam::synth_ptr synth;
+	ladspam::synth_ptr m_synth;
 	std::vector<voice> m_voices;
-	std::string path;
+	std::vector<ladspam::synth::buffer_ptr> m_exposed_input_port_buffers;
+	std::vector<ladspam::synth::buffer_ptr> m_exposed_output_port_buffers;
+	std::string m_path;
 };
+
+void expose_ports(MInstrument *instrument, ladspam_pb::Synth synth_pb, ladspam::synth_ptr the_synth)
+{
+	for (unsigned port_index = 0; port_index < synth_pb.exposed_ports_size(); ++port_index)
+	{
+		ladspam_pb::Port port = synth_pb.exposed_ports(port_index);
+		
+		ladspamm::plugin_ptr the_plugin = the_synth->get_plugin(port.plugin_index())->the_plugin;
+		
+		if (the_plugin->port_is_input(port.port_index()))
+		{
+			ladspam::synth::buffer_ptr buffer(new std::vector<float>);
+			
+			buffer->resize(the_synth->buffer_size());
+			
+			instrument->m_exposed_input_port_buffers.push_back(buffer);
+			
+			the_synth->connect(port.plugin_index(), port.port_index(), buffer);
+		}
+		else
+		{
+			instrument->m_exposed_output_port_buffers.push_back(the_synth->get_buffer(port.plugin_index(), port.port_index()));
+		}
+	}
+}
+
 
 typedef struct {
 	// Features
@@ -215,7 +314,7 @@ load_instrument(Instrument* self, const char* path)
 {
 	const size_t path_len  = strlen(path);
 
-	std::cout << "Loading instrument %s\n" << path << std::endl;
+	std::cout << "Loading instrument " << path << std::endl;
 	
 	try {
 		ladspam_pb::Instrument instrument_pb;
@@ -237,14 +336,21 @@ load_instrument(Instrument* self, const char* path)
 		MInstrument* instrument  = new MInstrument;
 
 		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
-		lv2_log_trace(&self->logger, "Succeeded to load instrument\n");
+		std::cout << "Succeeded to load instrument" << std::endl;
 
-		instrument->synth = synth;
-		instrument->path  = path;
+		expose_ports(instrument, instrument_pb.synth(), synth);
+		
+		for (unsigned voice_index = 0; voice_index < instrument_pb.number_of_voices(); ++voice_index)
+		{
+			instrument->m_voices.push_back(voice(8));
+		}
+		
+		instrument->m_synth = synth;
+		instrument->m_path  = path;
 		
 		return instrument;
 	} catch (std::exception &e) {
-		std::cout << "Ouch: " << e.what() << std::endl;
+		std::cout << "Error loading instrument: " << e.what() << std::endl;
 		return 0;
 	}
 }
@@ -253,7 +359,7 @@ static void
 free_instrument(Instrument* self, MInstrument *instrument)
 {
 	if (instrument) {
-		lv2_log_trace(&self->logger, "Freeing %s\n", instrument->path.c_str());
+		std::cout << "Freeing " << instrument->m_path << std::endl;
 		delete instrument;
 	}
 }
@@ -272,9 +378,9 @@ work(LV2_Handle                  instance,
      uint32_t                    size,
      const void*                 data)
 {
-	std::cout << ",,," << std::endl;
+	std::cout << "Loading instrument - work" << std::endl;
+	stacktrace(std::cout, 15);
 	
-	lv2_log_trace(&((Instrument*)instance)->logger, "Loading instrument - work \n");
 
 	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
@@ -328,8 +434,8 @@ work_response(LV2_Handle  instance,
 	// Send a notification that we're using a new sample.
 	lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
 	write_set_file(&self->forge, &self->uris,
-	               self->instrument->path.c_str(),
-	               self->instrument->path.length());
+	               self->instrument->m_path.c_str(),
+	               self->instrument->m_path.length());
 
 	return LV2_WORKER_SUCCESS;
 }
@@ -511,7 +617,7 @@ save(LV2_Handle                instance,
      uint32_t                  flags,
      const LV2_Feature* const* features)
 {
-	lv2_log_trace(&((Instrument*)instance)->logger, "Saving instrument settings\n");
+	std::cout << "Saving instrument settings..." << std::endl;
 
 	Instrument* self = (Instrument*)instance;
 	if (!self->instrument) {
@@ -525,12 +631,12 @@ save(LV2_Handle                instance,
 		}
 	}
 
-	char* apath = map_path->abstract_path(map_path->handle, self->instrument->path.c_str());
+	char* apath = map_path->abstract_path(map_path->handle, self->instrument->m_path.c_str());
 
 	store(handle,
 	      self->uris.instrument,
 	      apath,
-	      self->instrument->path.length() + 1,
+	      self->instrument->m_path.length() + 1,
 	      self->uris.atom_Path,
 	      LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
@@ -546,7 +652,7 @@ restore(LV2_Handle                  instance,
         uint32_t                    flags,
         const LV2_Feature* const*   features)
 {
-	lv2_log_trace(&((Instrument*)instance)->logger, "Restoring instrument settings\n");
+	std::cout << "Restoring instrument settings..." << std::endl;
 
 	Instrument* self = (Instrument*)instance;
 
@@ -561,7 +667,7 @@ restore(LV2_Handle                  instance,
 
 	if (value) {
 		const char* path = (const char*)value;
-		lv2_log_trace(&self->logger, "Restoring file %s\n", path);
+		std::cout << "Restoring file " <<  path << std::endl;
 		free_instrument(self, self->instrument);
 		self->instrument = load_instrument(self, path);
 	}
