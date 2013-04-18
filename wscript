@@ -66,8 +66,9 @@ def build(bld):
               name         = 'instrument',
               target       = '%s/instrument' % bundle,
               install_path = '${LV2DIR}/%s' % bundle,
-              use          = 'SNDFILE LV2',
-              includes     = includes)
+              use          = 'SNDFILE LV2 LADSPAM',
+              includes     = includes,
+              lib          = 'ladspam.pb')
     obj.env.cshlib_PATTERN = module_pat
 
     # Build UI library
