@@ -213,6 +213,8 @@ typedef struct {
 static MInstrument*
 load_instrument(Instrument* self, const char* path)
 {
+	// std::cout << "Loading instrument: " << path << std::endl;
+	
 	const size_t path_len  = strlen(path);
 
 	lv2_log_trace(&self->logger, "Loading instrument %s\n", path);
@@ -235,10 +237,17 @@ load_instrument(Instrument* self, const char* path)
 	
 	MInstrument* instrument  = new MInstrument;
 
-	ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
-	instrument->synth = synth;
-	instrument->path  = path;
+	try {
+		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
+		lv2_log_trace(&self->logger, "Succeeded to load instrument\n");
 
+		instrument->synth = synth;
+		instrument->path  = path;
+	} catch (std::exception &e) {
+		lv2_log_trace(&self->logger, "Failed to load instrument\n");
+		return 0;
+	}
+	
 	return instrument;
 }
 
@@ -265,6 +274,8 @@ work(LV2_Handle                  instance,
      uint32_t                    size,
      const void*                 data)
 {
+	lv2_log_trace(&((Instrument*)instance)->logger, "Loading instrument - work \n");
+
 	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
 	if (atom->type == self->uris.freeInstrument) {
@@ -366,6 +377,9 @@ instantiate(const LV2_Descriptor*     descriptor,
 	}
 	memset(self, 0, sizeof(Instrument));
 
+	lv2_log_trace(&self->logger, "Instrument coming up...\n");
+
+	
 	// Get host features
 	for (int i = 0; features[i]; ++i) {
 		if (!strcmp(features[i]->URI, LV2_URID__map)) {
@@ -410,13 +424,14 @@ static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
-#if 0
 	Instrument*     self        = (Instrument*)instance;
 	InstrumentURIs* uris        = &self->uris;
+#if 0
 	sf_count_t   start_frame = 0;
 	sf_count_t   pos         = 0;
 	float*       output      = self->output_port;
-
+#endif
+	
 	// Set up forge to write directly to notify output port.
 	const uint32_t notify_capacity = self->notify_port->atom.size;
 	lv2_atom_forge_set_buffer(&self->forge,
@@ -430,6 +445,7 @@ run(LV2_Handle instance,
 	LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) {
 		self->frame_offset = ev->time.frames;
 		if (ev->body.type == uris->midi_Event) {
+#if 0
 			const uint8_t* const msg = (const uint8_t*)(ev + 1);
 			switch (lv2_midi_message_type(msg)) {
 			case LV2_MIDI_MSG_NOTE_ON:
@@ -440,6 +456,7 @@ run(LV2_Handle instance,
 			default:
 				break;
 			}
+#endif
 		} else if (is_object_type(uris, ev->body.type)) {
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
 			if (obj->body.otype == uris->patch_Set) {
@@ -457,7 +474,8 @@ run(LV2_Handle instance,
 			              "Unknown event type %d\n", ev->body.type);
 		}
 	}
-
+	
+#if 0
 	// Render the sample (possibly already in progress)
 	if (self->play) {
 		uint32_t       f  = self->frame;
@@ -492,6 +510,8 @@ save(LV2_Handle                instance,
      uint32_t                  flags,
      const LV2_Feature* const* features)
 {
+	lv2_log_trace(&((Instrument*)instance)->logger, "Saving instrument settings\n");
+
 	Instrument* self = (Instrument*)instance;
 	if (!self->instrument) {
 		return LV2_STATE_SUCCESS;
@@ -525,6 +545,8 @@ restore(LV2_Handle                  instance,
         uint32_t                    flags,
         const LV2_Feature* const*   features)
 {
+	lv2_log_trace(&((Instrument*)instance)->logger, "Restoring instrument settings\n");
+
 	Instrument* self = (Instrument*)instance;
 
 	size_t   size;
