@@ -26,6 +26,7 @@
 
 #include <ladspam-0/synth.h>
 #include <ladspam.pb.h>
+#include <fstream>
 #include <vector>
 #include <boost/shared_ptr.hpp>
 #include <stdint.h>
@@ -52,6 +53,46 @@ enum {
 	INSTRUMENT_AUDIO_OUT1 = 4,
 	INSTRUMENT_AUDIO_OUT2 = 5
 };
+
+ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sample_rate, unsigned control_period)
+{
+	ladspam::synth_ptr the_synth(new ladspam::synth(sample_rate, control_period));
+	
+	for (unsigned plugin_index = 0; plugin_index < synth_pb.plugins_size(); ++plugin_index)
+	{
+		ladspam_pb::Plugin plugin_pb = synth_pb.plugins(plugin_index);
+		
+		the_synth->append_plugin
+		(
+			the_synth->find_plugin_library(plugin_pb.label()), 
+			plugin_pb.label()
+		);
+		
+		for (unsigned value_index = 0; value_index < plugin_pb.values_size(); ++value_index)
+		{
+			ladspam_pb::Value value = plugin_pb.values(value_index);
+			
+			the_synth->set_port_value(plugin_index, value.port_index(), value.value());
+		}
+	}
+	
+	for (unsigned connection_index = 0; connection_index < synth_pb.connections_size(); ++connection_index)
+	{
+		ladspam_pb::Connection connection_pb = synth_pb.connections(connection_index);
+		
+		the_synth->connect
+		(
+			connection_pb.source_index(),
+			connection_pb.source_port_index(),
+			connection_pb.sink_index(),
+			connection_pb.sink_port_index()
+		);
+	}
+	
+	//expose_ports(synth_pb, the_synth);
+	
+	return the_synth;
+}
 
 struct voice
 {
@@ -112,8 +153,7 @@ struct voice
 struct MInstrument {
 	ladspam::synth_ptr synth;
 	std::vector<voice> m_voices;
-	char *path;
-	unsigned path_len;
+	std::string path;
 };
 
 typedef struct {
@@ -177,13 +217,27 @@ load_instrument(Instrument* self, const char* path)
 
 	lv2_log_trace(&self->logger, "Loading instrument %s\n", path);
 	
+	ladspam_pb::Instrument instrument_pb;
+	std::ifstream input_file(path, std::ios::in | std::ios::binary);
+	
+	if (false == input_file.good())
+	{
+		std::cout << "Failed to open input stream" << std::endl;
+		return 0;
+	}
+		
+	
+	if (false == instrument_pb.ParseFromIstream(&input_file))
+	{
+		std::cout << "Failed to parse instrument definition file" << std::endl;
+		return 0;
+	}
+	
 	MInstrument* instrument  = new MInstrument;
 
-	ladspam::synth_ptr synth(new ladspam::synth(self->samplerate, 8));
+	ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
 	instrument->synth = synth;
-	instrument->path     = (char*)malloc(path_len + 1);
-	instrument->path_len = path_len;
-	memcpy(instrument->path, path, path_len + 1);
+	instrument->path  = path;
 
 	return instrument;
 }
@@ -192,8 +246,7 @@ static void
 free_instrument(Instrument* self, MInstrument *instrument)
 {
 	if (instrument) {
-		lv2_log_trace(&self->logger, "Freeing %s\n", instrument->path);
-		free(instrument->path);
+		lv2_log_trace(&self->logger, "Freeing %s\n", instrument->path.c_str());
 		delete instrument;
 	}
 }
@@ -264,8 +317,8 @@ work_response(LV2_Handle  instance,
 	// Send a notification that we're using a new sample.
 	lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
 	write_set_file(&self->forge, &self->uris,
-	               self->instrument->path,
-	               self->instrument->path_len);
+	               self->instrument->path.c_str(),
+	               self->instrument->path.length());
 
 	return LV2_WORKER_SUCCESS;
 }
@@ -451,12 +504,12 @@ save(LV2_Handle                instance,
 		}
 	}
 
-	char* apath = map_path->abstract_path(map_path->handle, self->instrument->path);
+	char* apath = map_path->abstract_path(map_path->handle, self->instrument->path.c_str());
 
 	store(handle,
 	      self->uris.instrument,
 	      apath,
-	      strlen(self->instrument->path) + 1,
+	      self->instrument->path.length() + 1,
 	      self->uris.atom_Path,
 	      LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
