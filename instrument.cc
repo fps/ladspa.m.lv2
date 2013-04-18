@@ -29,6 +29,7 @@
 #include <fstream>
 #include <vector>
 #include <boost/shared_ptr.hpp>
+#include <boost/iterator/iterator_concepts.hpp>
 #include <stdint.h>
 
 
@@ -47,6 +48,8 @@
 
 #include <execinfo.h>
 #include <cxxabi.h>
+
+const unsigned buffer_size = 2048;
 
 static std::string
 symbol_demangle (const std::string& l)
@@ -221,13 +224,47 @@ struct voice
 	}
 };
 
+
 struct MInstrument {
 	ladspam::synth_ptr m_synth;
 	std::vector<voice> m_voices;
 	std::vector<ladspam::synth::buffer_ptr> m_exposed_input_port_buffers;
 	std::vector<ladspam::synth::buffer_ptr> m_exposed_output_port_buffers;
 	std::string m_path;
+	unsigned m_frame;
 };
+
+unsigned oldest_voice(MInstrument *instrument, unsigned frame)
+{
+	unsigned minimum_age = frame + instrument->m_frame - instrument->m_voices[0].m_start_frame;
+	unsigned oldest_index = 0;
+	
+	for (unsigned voice_index = 1; voice_index < instrument->m_voices.size(); ++voice_index)
+	{
+		unsigned age = frame + instrument->m_frame - instrument->m_voices[voice_index].m_start_frame;
+		if (age > minimum_age)
+		{
+			oldest_index = voice_index;
+			minimum_age = age;
+		}
+	}
+	
+	return oldest_index;
+}
+
+int voice_playing_note(MInstrument *instrument, unsigned note)
+{
+	for (unsigned voice_index = 0; voice_index < instrument->m_voices.size(); ++voice_index)
+	{
+		if (instrument->m_voices[voice_index].m_note == note && instrument->m_voices[voice_index].m_gate > 0)
+		{
+			return voice_index;
+		}
+	}
+	
+	// UGLY
+	return -1;
+}
 
 void expose_ports(MInstrument *instrument, ladspam_pb::Synth synth_pb, ladspam::synth_ptr the_synth)
 {
@@ -272,10 +309,8 @@ typedef struct {
 	// Ports
 	const LV2_Atom_Sequence* control_port;
 	LV2_Atom_Sequence*       notify_port;
-	float*                   input_port1;
-	float*                   input_port2;
-	float*                   output_port1;
-	float*                   output_port2;
+	std::vector<float*>      input_ports;
+	std::vector<float*>      output_ports;
 
 	// Forge frame for notify port (for writing worker replies)
 	LV2_Atom_Forge_Frame notify_frame;
@@ -312,6 +347,8 @@ typedef struct {
 static MInstrument*
 load_instrument(Instrument* self, const char* path)
 {
+	stacktrace(std::cout, 15);
+
 	const size_t path_len  = strlen(path);
 
 	std::cout << "Loading instrument " << path << std::endl;
@@ -335,18 +372,20 @@ load_instrument(Instrument* self, const char* path)
 		
 		MInstrument* instrument  = new MInstrument;
 
-		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, 8);
+		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, buffer_size);
 		std::cout << "Succeeded to load instrument" << std::endl;
 
 		expose_ports(instrument, instrument_pb.synth(), synth);
 		
 		for (unsigned voice_index = 0; voice_index < instrument_pb.number_of_voices(); ++voice_index)
 		{
-			instrument->m_voices.push_back(voice(8));
+			instrument->m_voices.push_back(voice(buffer_size));
 		}
 		
 		instrument->m_synth = synth;
 		instrument->m_path  = path;
+		
+		instrument->m_frame = 0;
 		
 		return instrument;
 	} catch (std::exception &e) {
@@ -379,9 +418,7 @@ work(LV2_Handle                  instance,
      const void*                 data)
 {
 	std::cout << "Loading instrument - work" << std::endl;
-	stacktrace(std::cout, 15);
 	
-
 	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
 	if (atom->type == self->uris.freeInstrument) {
@@ -454,16 +491,16 @@ connect_port(LV2_Handle instance,
 		self->notify_port = (LV2_Atom_Sequence*)data;
 		break;
 	case INSTRUMENT_AUDIO_IN1:
-		self->input_port1 = (float*)data;
+		self->input_ports[0] = (float*)data;
 		break;
 	case INSTRUMENT_AUDIO_IN2:
-		self->input_port2 = (float*)data;
+		self->input_ports[1] = (float*)data;
 		break;
 	case INSTRUMENT_AUDIO_OUT1:
-		self->output_port1 = (float*)data;
+		self->output_ports[0] = (float*)data;
 		break;
 	case INSTRUMENT_AUDIO_OUT2:
-		self->output_port2 = (float*)data;
+		self->output_ports[1] = (float*)data;
 		break;
 	default:
 		break;
@@ -513,6 +550,8 @@ instantiate(const LV2_Descriptor*     descriptor,
 
 	self->instrument = 0;
 	self->samplerate = rate;
+	self->input_ports.resize(2);
+	self->output_ports.resize(2);
 
 	return (LV2_Handle)self;
 }
@@ -527,17 +566,98 @@ cleanup(LV2_Handle instance)
 	free(self);
 }
 
+static void process(Instrument *instrument, unsigned nframes, unsigned offset)
+{
+	unsigned number_of_chunks = nframes / buffer_size;
+	unsigned remainder = nframes % buffer_size;
+	
+	unsigned number_of_input_ports = std::min<unsigned>(2, instrument->instrument->m_exposed_input_port_buffers.size());
+	
+	unsigned number_of_output_ports = std::min<unsigned>(2, instrument->instrument->m_exposed_output_port_buffers.size());
+	
+	for (unsigned chunk_index = 0; chunk_index < number_of_chunks; ++chunk_index)
+	{
+		for 
+		(
+			unsigned port_index = 0; 
+			port_index < number_of_input_ports; 
+			++port_index
+		)
+		{
+			std::copy
+			(
+				instrument->input_ports[port_index] + offset + chunk_index * buffer_size, 
+				instrument->input_ports[port_index] + offset + chunk_index * buffer_size + buffer_size, 
+				instrument->instrument->m_exposed_input_port_buffers[port_index]->begin()
+			);
+		}
+		
+		instrument->instrument->m_synth->process(buffer_size);
+		
+		for 
+		(
+			unsigned port_index = 0; 
+			port_index < number_of_output_ports; 
+			++port_index
+		)
+		{
+			std::copy
+			(
+				instrument->instrument->m_exposed_output_port_buffers[port_index]->begin(),
+				instrument->instrument->m_exposed_output_port_buffers[port_index]->begin() + buffer_size,
+				instrument->output_ports[port_index] + offset + chunk_index * buffer_size
+			);
+		}
+	}
+	
+	for 
+	(
+		unsigned port_index = 0; 
+		port_index < number_of_input_ports; 
+		++port_index
+	)
+	{
+		std::copy
+		(
+			instrument->input_ports[port_index] + offset + number_of_chunks * buffer_size, 
+			instrument->input_ports[port_index] + offset + number_of_chunks * buffer_size + remainder, 
+			instrument->instrument->m_exposed_input_port_buffers[port_index]->begin()
+		);
+	}
+	
+	instrument->instrument->m_synth->process(remainder);
+
+	for 
+	(
+		unsigned port_index = 0; 
+		port_index < number_of_output_ports; 
+		++port_index
+	)
+	{
+		std::copy
+		(
+			instrument->instrument->m_exposed_output_port_buffers[port_index]->begin(),
+			instrument->instrument->m_exposed_output_port_buffers[port_index]->begin() + remainder,
+			instrument->output_ports[port_index] + offset + number_of_chunks * buffer_size
+		);
+	}
+}
+
 static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
 	Instrument*     self        = (Instrument*)instance;
 	InstrumentURIs* uris        = &self->uris;
-#if 0
-	sf_count_t   start_frame = 0;
-	sf_count_t   pos         = 0;
-	float*       output      = self->output_port;
-#endif
+	unsigned offset             = 0;
+	
+	MInstrument *instrument     = self->instrument;
+	
+	if (0 == instrument)
+	{
+		return;
+	}
+	
 	
 	// Set up forge to write directly to notify output port.
 	const uint32_t notify_capacity = self->notify_port->atom.size;
@@ -582,6 +702,7 @@ run(LV2_Handle instance,
 		}
 	}
 	
+	process(self, sample_count, 0);
 #if 0
 	// Render the sample (possibly already in progress)
 	if (self->play) {
@@ -608,6 +729,8 @@ run(LV2_Handle instance,
 		output[pos] = 0.0f;
 	}
 #endif
+
+	instrument->m_frame += sample_count;
 }
 
 static LV2_State_Status
@@ -653,6 +776,8 @@ restore(LV2_Handle                  instance,
         const LV2_Feature* const*   features)
 {
 	std::cout << "Restoring instrument settings..." << std::endl;
+	
+	stacktrace(std::cout, 15);
 
 	Instrument* self = (Instrument*)instance;
 
