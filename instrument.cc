@@ -238,6 +238,8 @@ struct MInstrument {
 	std::vector<ladspam::synth::buffer_ptr> m_exposed_output_port_buffers;
 	std::string m_path;
 	unsigned m_frame;
+	
+	MInstrument() : m_current_voice(0), m_frame(0) { }
 };
 
 
@@ -745,53 +747,29 @@ run(LV2_Handle instance,
 		}
 	}
 
+	if (!instrument)
+	{
+		return;
+	}
+	
 	int number_of_voices = instrument ? instrument->m_voices.size() : 0;
 
-	if (instrument)
+	for 
+	(
+		int voice_index = 0; 
+		voice_index < number_of_voices; 
+		++voice_index
+	)
 	{
-		for 
+		std::vector<float *> &buffers = instrument->m_voices[voice_index].m_port_buffers_raw;
+		
+		float *trigger_buffer = buffers[0];
+		std::fill
 		(
-			int voice_index = 0; 
-			voice_index < number_of_voices; 
-			++voice_index
-		)
-		{
-			std::vector<float *> &buffers = instrument->m_voices[voice_index].m_port_buffers_raw;
-			
-			float *trigger_buffer = buffers[0];
-			std::fill
-			(
-				trigger_buffer,
-				trigger_buffer + buffer_size,
-				0.0f
-			);
-			
-#if 0
-			float *gate_buffer = buffers[1];
-			std::fill
-			(
-				gate_buffer,
-				gate_buffer + buffer_size,
-				0.0f
-			);
-
-			float *velocity_buffer = buffers[2];
-			std::fill
-			(
-				velocity_buffer,
-				velocity_buffer + buffer_size,
-				1.0f
-			);
-
-			float *freq_buffer = buffers[3];
-			std::fill
-			(
-				freq_buffer,
-				freq_buffer + buffer_size,
-				4 * 440.0f
-			);
-#endif
-		}
+			trigger_buffer,
+			trigger_buffer + buffer_size,
+			0.0f
+		);
 	}
 
 	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
@@ -808,42 +786,40 @@ run(LV2_Handle instance,
 			
 			if (ev->body.type == uris->midi_Event) 
 			{
-				if (instrument)
+				const uint8_t* const msg = (const uint8_t*)(ev + 1);
+				switch (lv2_midi_message_type(msg)) 
 				{
-					const uint8_t* const msg = (const uint8_t*)(ev + 1);
-					switch (lv2_midi_message_type(msg)) 
+					case LV2_MIDI_MSG_NOTE_ON:
 					{
-						case LV2_MIDI_MSG_NOTE_ON:
-						{
-							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
-							const uint8_t *velocity = (const uint8_t*)(ev + 1) + 2;
-							
-							// std::cout << (int)*note << std::endl;
-							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
-							// std::cout << the_voice << std::endl;
-							instrument->m_voices[the_voice].m_note = *note;
-							instrument->m_voices[the_voice].m_on_velocity = *velocity / 128.0;
-							instrument->m_voices[the_voice].m_note_frequency = note_frequency(*note);
-							instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
-							instrument->m_voices[the_voice].m_gate = 1;
-							instrument->m_voices[the_voice].m_start_frame = instrument->m_frame + ev->time.frames;
-							break;
-						}
-						case LV2_MIDI_MSG_NOTE_OFF:
-						{
-							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
-							
-							int the_voice = voice_playing_note(instrument, *note);
-							
-							if (-1 != the_voice)
-							{
-								instrument->m_voices[the_voice].m_gate = 0;
-							}
-						}
-						default:
-							break;
+						const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
+						const uint8_t *velocity = (const uint8_t*)(ev + 1) + 2;
+						
+						// std::cout << (int)*note << std::endl;
+						unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
+						// std::cout << the_voice << std::endl;
+						instrument->m_voices[the_voice].m_note = *note;
+						instrument->m_voices[the_voice].m_on_velocity = *velocity / 128.0;
+						instrument->m_voices[the_voice].m_note_frequency = note_frequency(*note);
+						instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
+						instrument->m_voices[the_voice].m_gate = 1;
+						instrument->m_voices[the_voice].m_start_frame = instrument->m_frame + ev->time.frames;
+						break;
 					}
+					case LV2_MIDI_MSG_NOTE_OFF:
+					{
+						const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
+						
+						int the_voice = voice_playing_note(instrument, *note);
+						
+						if (-1 != the_voice)
+						{
+							instrument->m_voices[the_voice].m_gate = 0;
+						}
+					}
+					default:
+						break;
 				}
+				
 			} 
 			ev = lv2_atom_sequence_next(ev);
 		}
@@ -862,20 +838,15 @@ run(LV2_Handle instance,
 			instrument->m_voices[voice_index].m_port_buffers_raw[3][frame_in_chunk] = instrument->m_voices[voice_index].m_note_frequency;
 		}
 		
+		// Did we reach the end of a chunk or the last of the sample_count?
 		if (0 == (frame_index + 1) % buffer_size || sample_count == frame_index + 1)
 		{
-			if (instrument)
-			{
-				process(self, frame_index % buffer_size + 1, chunk_index * buffer_size);
-			}
+			process(self, frame_index % buffer_size + 1, chunk_index * buffer_size);
 			++chunk_index;
 		}
 	}
 	
-	if (instrument)
-	{
-		instrument->m_frame += sample_count;
-	}
+	instrument->m_frame += sample_count;
 }
 
 static LV2_State_Status
