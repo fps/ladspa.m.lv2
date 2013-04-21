@@ -129,7 +129,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 	std::cout << "Building synth..." << std::endl;
 	ladspam::synth_ptr the_synth(new ladspam::synth(sample_rate, control_period));
 	
-	for (unsigned plugin_index = 0; plugin_index < synth_pb.plugins_size(); ++plugin_index)
+	for (int plugin_index = 0; plugin_index < synth_pb.plugins_size(); ++plugin_index)
 	{
 		ladspam_pb::Plugin plugin_pb = synth_pb.plugins(plugin_index);
 		
@@ -141,7 +141,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 			plugin_pb.label()
 		);
 		
-		for (unsigned value_index = 0; value_index < plugin_pb.values_size(); ++value_index)
+		for (int value_index = 0; value_index < plugin_pb.values_size(); ++value_index)
 		{
 			ladspam_pb::Value value = plugin_pb.values(value_index);
 			
@@ -149,7 +149,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 		}
 	}
 	
-	for (unsigned connection_index = 0; connection_index < synth_pb.connections_size(); ++connection_index)
+	for (int connection_index = 0; connection_index < synth_pb.connections_size(); ++connection_index)
 	{
 		ladspam_pb::Connection connection_pb = synth_pb.connections(connection_index);
 		
@@ -242,7 +242,7 @@ struct MInstrument {
 
 void expose_ports(MInstrument *instrument, ladspam_pb::Synth synth_pb, ladspam::synth_ptr the_synth)
 {
-	for (unsigned port_index = 0; port_index < synth_pb.exposed_ports_size(); ++port_index)
+	for (int port_index = 0; port_index < synth_pb.exposed_ports_size(); ++port_index)
 	{
 		ladspam_pb::Port port = synth_pb.exposed_ports(port_index);
 		
@@ -325,8 +325,6 @@ load_instrument(Instrument* self, const char* path)
 {
 	// stacktrace(std::cout, 15);
 
-	const size_t path_len  = strlen(path);
-
 	std::cout << "Loading instrument " << path << std::endl;
 
 	ladspam_pb::Instrument instrument_pb;
@@ -351,7 +349,7 @@ load_instrument(Instrument* self, const char* path)
 		return 0;
 	}
 
-	MInstrument *instrument;
+	MInstrument *instrument = 0;
 	
 	try {
 		instrument  = new MInstrument;
@@ -361,13 +359,13 @@ load_instrument(Instrument* self, const char* path)
 
 		expose_ports(instrument, instrument_pb.synth(), synth);
 		
-		for (unsigned voice_index = 0; voice_index < instrument_pb.number_of_voices(); ++voice_index)
+		for (int voice_index = 0; voice_index < instrument_pb.number_of_voices(); ++voice_index)
 		{
 			instrument->m_voices.push_back(voice(buffer_size));
 		}
 		instrument->m_current_voice = 0;
 
-		for (unsigned connection_index = 0; connection_index < instrument_pb.connections_size(); ++connection_index)
+		for (int connection_index = 0; connection_index < instrument_pb.connections_size(); ++connection_index)
 		{
 			ladspam_pb::Connection connection = instrument_pb.connections(connection_index);
 
@@ -566,6 +564,8 @@ cleanup(LV2_Handle instance)
 
 static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 {
+	//std::cout << nframes << " " << offset << std::endl;
+	
 	unsigned number_of_chunks = nframes / buffer_size;
 	unsigned remainder = nframes % buffer_size;
 	
@@ -724,13 +724,14 @@ run(LV2_Handle instance,
 		}
 	}
 
-	
+	int number_of_voices = instrument ? instrument->m_voices.size() : 0;
+
 	if (instrument)
 	{
 		for 
 		(
-			unsigned voice_index = 0, max_voice_index = instrument->m_voices.size(); 
-			voice_index < max_voice_index; 
+			unsigned voice_index = 0; 
+			voice_index < number_of_voices; 
 			++voice_index
 		)
 		{
@@ -743,7 +744,7 @@ run(LV2_Handle instance,
 				trigger_buffer + buffer_size,
 				0.0f
 			);
-
+			
 			float *gate_buffer = buffers[1];
 			std::fill
 			(
@@ -752,6 +753,7 @@ run(LV2_Handle instance,
 				0.0f
 			);
 
+#if 0
 			float *velocity_buffer = buffers[2];
 			std::fill
 			(
@@ -767,11 +769,13 @@ run(LV2_Handle instance,
 				freq_buffer + buffer_size,
 				4 * 440.0f
 			);
+#endif
 		}
 	}
 
 	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
 
+	
 	unsigned chunk_index = 0;
 	for (unsigned frame_index = 0; frame_index < sample_count; ++frame_index)
 	{
@@ -791,10 +795,12 @@ run(LV2_Handle instance,
 					{
 						case LV2_MIDI_MSG_NOTE_ON:
 						{
-							const uint8_t *note = (const uint8_t*)(ev + 2);
-							
+							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
+							std::cout << (int)*note << std::endl;
 							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
-							std::cout << the_voice << std::endl;
+							// std::cout << the_voice << std::endl;
+							instrument->m_voices[the_voice].m_note = *note;
+							instrument->m_voices[the_voice].m_note_frequency = note_frequency(*note);
 							instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
 							instrument->m_voices[the_voice].m_port_buffers_raw[1][frame_in_chunk] = 1;
 							instrument->m_voices[the_voice].m_gate = 1;
@@ -820,11 +826,21 @@ run(LV2_Handle instance,
 			ev = lv2_atom_sequence_next(ev);
 		}
 		
+		for 
+		(
+			int voice_index = 0; 
+			voice_index < number_of_voices; 
+			++voice_index
+		)
+		{
+			instrument->m_voices[voice_index].m_port_buffers_raw[3][frame_in_chunk] = instrument->m_voices[voice_index].m_note_frequency;
+		}
+		
 		if (0 == (frame_index + 1) % buffer_size || sample_count == frame_index + 1)
 		{
 			if (instrument)
 			{
-				process(self, frame_index % buffer_size, frame_index - chunk_index * buffer_size);
+				process(self, frame_index % buffer_size + 1, chunk_index * buffer_size);
 			}
 			++chunk_index;
 		}
