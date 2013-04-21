@@ -49,7 +49,7 @@
 #include <execinfo.h>
 #include <cxxabi.h>
 
-const unsigned buffer_size = 2048;
+const unsigned buffer_size = 1024;
 
 static std::string
 symbol_demangle (const std::string& l)
@@ -172,7 +172,7 @@ struct voice
 {
 	float m_gate;
 	unsigned m_note;
-	unsigned m_on_velocity;
+	float m_on_velocity;
 	unsigned m_off_velocity;
 	float m_note_frequency;
 	unsigned m_start_frame;
@@ -730,7 +730,7 @@ run(LV2_Handle instance,
 	{
 		for 
 		(
-			unsigned voice_index = 0; 
+			int voice_index = 0; 
 			voice_index < number_of_voices; 
 			++voice_index
 		)
@@ -745,6 +745,7 @@ run(LV2_Handle instance,
 				0.0f
 			);
 			
+#if 0
 			float *gate_buffer = buffers[1];
 			std::fill
 			(
@@ -753,7 +754,6 @@ run(LV2_Handle instance,
 				0.0f
 			);
 
-#if 0
 			float *velocity_buffer = buffers[2];
 			std::fill
 			(
@@ -796,19 +796,29 @@ run(LV2_Handle instance,
 						case LV2_MIDI_MSG_NOTE_ON:
 						{
 							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
+							const uint8_t *velocity = (const uint8_t*)(ev + 1) + 2;
+							
 							std::cout << (int)*note << std::endl;
 							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
 							// std::cout << the_voice << std::endl;
 							instrument->m_voices[the_voice].m_note = *note;
+							instrument->m_voices[the_voice].m_on_velocity = *velocity / 128.0;
 							instrument->m_voices[the_voice].m_note_frequency = note_frequency(*note);
 							instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
-							instrument->m_voices[the_voice].m_port_buffers_raw[1][frame_in_chunk] = 1;
 							instrument->m_voices[the_voice].m_gate = 1;
 							instrument->m_voices[the_voice].m_start_frame = instrument->m_frame + ev->time.frames;
 							break;
 						}
 						case LV2_MIDI_MSG_NOTE_OFF:
 						{
+							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
+							
+							unsigned the_voice = voice_playing_note(instrument, *note);
+							
+							if (-1 != the_voice)
+							{
+								instrument->m_voices[the_voice].m_gate = 0;
+							}
 #if 0
 							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
 							std::cout << the_voice << std::endl;
@@ -833,6 +843,10 @@ run(LV2_Handle instance,
 			++voice_index
 		)
 		{
+			instrument->m_voices[voice_index].m_port_buffers_raw[1][frame_in_chunk] = instrument->m_voices[voice_index].m_gate;
+			
+			instrument->m_voices[voice_index].m_port_buffers_raw[2][frame_in_chunk] = instrument->m_voices[voice_index].m_on_velocity;
+
 			instrument->m_voices[voice_index].m_port_buffers_raw[3][frame_in_chunk] = instrument->m_voices[voice_index].m_note_frequency;
 		}
 		
