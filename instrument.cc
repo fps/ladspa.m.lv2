@@ -819,14 +819,6 @@ run(LV2_Handle instance,
 							{
 								instrument->m_voices[the_voice].m_gate = 0;
 							}
-#if 0
-							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
-							std::cout << the_voice << std::endl;
-							instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
-							instrument->m_voices[the_voice].m_gate = 1;
-							instrument->m_voices[the_voice].m_start_frame = instrument->m_frame + ev->time.frames;
-							break;
-#endif
 						}
 						default:
 							break;
