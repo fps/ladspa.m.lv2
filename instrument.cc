@@ -330,7 +330,8 @@ load_instrument(Instrument* self, const char* path)
 
 	ladspam_pb::Instrument instrument_pb;
 
-	try {
+	try 
+	{
 		std::ifstream input_file(path, std::ios::in | std::ios::binary);
 		
 		if (false == input_file.good())
@@ -345,14 +346,17 @@ load_instrument(Instrument* self, const char* path)
 			std::cout << "Failed to parse instrument definition file" << std::endl;
 			return 0;
 		}
-	} catch (...) {
+	}
+	catch (...) 
+	{
 		std::cout << "Failed to read instrument definition file" << std::endl;
 		return 0;
 	}
 
 	MInstrument *instrument = 0;
 	
-	try {
+	try 
+	{
 		instrument  = new MInstrument;
 
 		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, buffer_size);
@@ -384,7 +388,9 @@ load_instrument(Instrument* self, const char* path)
 		instrument->m_frame = 0;
 		
 		return instrument;
-	} catch (std::exception &e) {
+	} 
+	catch (std::exception &e) 
+	{
 		std::cout << "Error loading instrument: " << e.what() << std::endl;
 		delete instrument;
 		return 0;
@@ -394,7 +400,8 @@ load_instrument(Instrument* self, const char* path)
 static void
 free_instrument(Instrument* self, MInstrument *instrument)
 {
-	if (instrument) {
+	if (instrument) 
+	{
 		std::cout << "Freeing " << instrument->m_path << std::endl;
 		delete instrument;
 	}
@@ -418,22 +425,30 @@ work(LV2_Handle                  instance,
 	
 	Instrument*        self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
-	if (atom->type == self->uris.freeInstrument) {
+	
+	if (atom->type == self->uris.freeInstrument) 
+	{
 		const InstrumentMessage* msg = (const InstrumentMessage*)data;
 		free_instrument(self, msg->instrument);
-	} else {
+	} 
+	else 
+	{
 		// Handle set message (load sample).
 		const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
 
 		// Get file path from message
 		const LV2_Atom* file_path = read_set_file(&self->uris, obj);
-		if (!file_path) {
+		
+		if (!file_path) 
+		{
 			return LV2_WORKER_ERR_UNKNOWN;
 		}
 
 		// Load sample.
 		MInstrument* instrument = (MInstrument*)load_instrument(self, (const char*)LV2_ATOM_BODY_CONST(file_path));
-		if (instrument) {
+		
+		if (instrument) 
+		{
 			// Loaded sample, send it to run() to be applied.
 			respond(handle, sizeof(instrument), &instrument);
 		}
