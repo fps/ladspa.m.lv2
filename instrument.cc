@@ -710,7 +710,7 @@ run(LV2_Handle instance,
 	
 	Instrument*     self        = (Instrument*)instance;
 	InstrumentURIs* uris        = &self->uris;
-	unsigned offset             = 0;
+	// long int offset             = 0;
 	
 	MInstrument *instrument     = self->instrument;
 	
@@ -833,7 +833,7 @@ run(LV2_Handle instance,
 						{
 							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
 							
-							unsigned the_voice = voice_playing_note(instrument, *note);
+							int the_voice = voice_playing_note(instrument, *note);
 							
 							if (-1 != the_voice)
 							{
