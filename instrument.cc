@@ -71,17 +71,20 @@ std::string demangle (std::string const & l)
 {
 	std::string::size_type const b = l.find_first_of ("(");
 
-	if (b == std::string::npos) {
+	if (b == std::string::npos) 
+	{
 		return symbol_demangle (l);
 	}
 
 	std::string::size_type const p = l.find_last_of ("+");
-	if (p == std::string::npos) {
-	return symbol_demangle (l);
+	if (p == std::string::npos) 
+	{
+		return symbol_demangle (l);
 	}
 
-	if ((p - b) <= 1) {
-	return symbol_demangle (l);
+	if ((p - b) <= 1) 
+	{
+		return symbol_demangle (l);
 	}
 
 	std::string const fn = l.substr (b + 1, p - b - 1);
@@ -98,18 +101,23 @@ void stacktrace (std::ostream& out, int levels)
 		
 	size = backtrace (array, 200);
 
-	if (size) {
+	if (size) 
+	{
 		strings = backtrace_symbols (array, size);
 			
-		if (strings) {
+		if (strings) 
+		{
 
-			for (i = 0; i < size && (levels == 0 || i < size_t(levels)); i++) {
+			for (i = 0; i < size && (levels == 0 || i < size_t(levels)); i++) 
+			{
 				out << " " << demangle (strings[i]) << std::endl;
 			}
 
 			free (strings);
 		}
-	} else {
+	} 
+	else 
+	{
 		out << "no stacktrace available!" << std::endl;
 	}
 }
@@ -213,13 +221,6 @@ struct voice
 
 		{
 			// Frequency
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
-			buffer->resize(control_period);
-			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
-		}
-
-		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
