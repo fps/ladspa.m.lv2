@@ -177,7 +177,7 @@ struct voice
 	float m_note_frequency;
 	unsigned m_start_frame;
 	std::vector<ladspam::synth::buffer_ptr> m_port_buffers;
-	std::vector<ladspam::synth::buffer *> m_port_buffers_raw;
+	std::vector<float *> m_port_buffers_raw;
 	
 	voice(unsigned control_period) :
 		m_gate(0.0),
@@ -191,35 +191,35 @@ struct voice
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(buffer.get());
+			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(buffer.get());
+			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(buffer.get());
+			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(buffer.get());
+			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
 		}
 
 		{
 			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
-			m_port_buffers_raw.push_back(buffer.get());
+			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
 		}
 	}
 };
@@ -228,43 +228,13 @@ struct voice
 struct MInstrument {
 	ladspam::synth_ptr m_synth;
 	std::vector<voice> m_voices;
+	unsigned m_current_voice;
 	std::vector<ladspam::synth::buffer_ptr> m_exposed_input_port_buffers;
 	std::vector<ladspam::synth::buffer_ptr> m_exposed_output_port_buffers;
 	std::string m_path;
 	unsigned m_frame;
 };
 
-unsigned oldest_voice(MInstrument *instrument, unsigned frame)
-{
-	unsigned minimum_age = frame + instrument->m_frame - instrument->m_voices[0].m_start_frame;
-	unsigned oldest_index = 0;
-	
-	for (unsigned voice_index = 1; voice_index < instrument->m_voices.size(); ++voice_index)
-	{
-		unsigned age = frame + instrument->m_frame - instrument->m_voices[voice_index].m_start_frame;
-		if (age > minimum_age)
-		{
-			oldest_index = voice_index;
-			minimum_age = age;
-		}
-	}
-	
-	return oldest_index;
-}
-
-int voice_playing_note(MInstrument *instrument, unsigned note)
-{
-	for (unsigned voice_index = 0; voice_index < instrument->m_voices.size(); ++voice_index)
-	{
-		if (instrument->m_voices[voice_index].m_note == note && instrument->m_voices[voice_index].m_gate > 0)
-		{
-			return voice_index;
-		}
-	}
-	
-	// UGLY
-	return -1;
-}
 
 void expose_ports(MInstrument *instrument, ladspam_pb::Synth synth_pb, ladspam::synth_ptr the_synth)
 {
@@ -321,6 +291,8 @@ typedef struct {
 	// Current position in run()
 	uint32_t frame_offset;
 
+	unsigned long frame;
+
 	unsigned long samplerate;
 } Instrument;
 
@@ -347,14 +319,15 @@ typedef struct {
 static MInstrument*
 load_instrument(Instrument* self, const char* path)
 {
-	stacktrace(std::cout, 15);
+	// stacktrace(std::cout, 15);
 
 	const size_t path_len  = strlen(path);
 
 	std::cout << "Loading instrument " << path << std::endl;
-	
+
+	ladspam_pb::Instrument instrument_pb;
+
 	try {
-		ladspam_pb::Instrument instrument_pb;
 		std::ifstream input_file(path, std::ios::in | std::ios::binary);
 		
 		if (false == input_file.good())
@@ -369,8 +342,15 @@ load_instrument(Instrument* self, const char* path)
 			std::cout << "Failed to parse instrument definition file" << std::endl;
 			return 0;
 		}
-		
-		MInstrument* instrument  = new MInstrument;
+	} catch (...) {
+		std::cout << "Failed to read instrument definition file" << std::endl;
+		return 0;
+	}
+
+	MInstrument *instrument;
+	
+	try {
+		instrument  = new MInstrument;
 
 		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, buffer_size);
 		std::cout << "Succeeded to load instrument" << std::endl;
@@ -381,6 +361,19 @@ load_instrument(Instrument* self, const char* path)
 		{
 			instrument->m_voices.push_back(voice(buffer_size));
 		}
+		instrument->m_current_voice = 0;
+
+		for (unsigned connection_index = 0; connection_index < instrument_pb.connections_size(); ++connection_index)
+		{
+			ladspam_pb::Connection connection_pb = instrument_pb.connections(connection_index);
+
+			synth->connect
+			(
+				connection_pb.sink_index(),
+				connection_pb.sink_port_index(),
+				instrument->m_voices[connection_pb.source_index()].m_port_buffers[connection_pb.source_port_index()]
+			);
+		}
 		
 		instrument->m_synth = synth;
 		instrument->m_path  = path;
@@ -390,6 +383,7 @@ load_instrument(Instrument* self, const char* path)
 		return instrument;
 	} catch (std::exception &e) {
 		std::cout << "Error loading instrument: " << e.what() << std::endl;
+		delete instrument;
 		return 0;
 	}
 }
@@ -568,6 +562,11 @@ cleanup(LV2_Handle instance)
 
 static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 {
+	if (0 == instrument->instrument)
+	{
+		return;
+	}
+
 	unsigned number_of_chunks = nframes / buffer_size;
 	unsigned remainder = nframes % buffer_size;
 	
@@ -643,6 +642,44 @@ static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 	}
 }
 
+
+float note_frequency(unsigned int note) 
+{
+	return (2.0 * 440.0 / 32.0) * pow(2, (((float)note - 9.0) / 12.0));
+}
+
+unsigned oldest_voice(MInstrument *instrument, unsigned frame)
+{
+	unsigned long minimum_age = frame - instrument->m_voices[0].m_start_frame;
+	unsigned oldest_index = 0;
+	
+	for (unsigned voice_index = 1; voice_index < instrument->m_voices.size(); ++voice_index)
+	{
+		unsigned long age = frame - instrument->m_voices[voice_index].m_start_frame;
+		if (age > minimum_age)
+		{
+			oldest_index = voice_index;
+			minimum_age = age;
+		}
+	}
+	
+	return oldest_index;
+}
+
+int voice_playing_note(MInstrument *instrument, unsigned note)
+{
+	for (unsigned voice_index = 0; voice_index < instrument->m_voices.size(); ++voice_index)
+	{
+		if (instrument->m_voices[voice_index].m_note == note && instrument->m_voices[voice_index].m_gate > 0)
+		{
+			return voice_index;
+		}
+	}
+	
+	// UGLY
+	return -1;
+}
+
 static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
@@ -653,12 +690,6 @@ run(LV2_Handle instance,
 	
 	MInstrument *instrument     = self->instrument;
 	
-	if (0 == instrument)
-	{
-		return;
-	}
-	
-	
 	// Set up forge to write directly to notify output port.
 	const uint32_t notify_capacity = self->notify_port->atom.size;
 	lv2_atom_forge_set_buffer(&self->forge,
@@ -668,41 +699,100 @@ run(LV2_Handle instance,
 	// Start a sequence in the notify output port.
 	lv2_atom_forge_sequence_head(&self->forge, &self->notify_frame, 0);
 
-	// Read incoming events
-	LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) {
-		self->frame_offset = ev->time.frames;
-		if (ev->body.type == uris->midi_Event) {
-#if 0
-			const uint8_t* const msg = (const uint8_t*)(ev + 1);
-			switch (lv2_midi_message_type(msg)) {
-			case LV2_MIDI_MSG_NOTE_ON:
-				start_frame = ev->time.frames;
-				self->frame = 0;
-				self->play  = true;
-				break;
-			default:
-				break;
-			}
-#endif
-		} else if (is_object_type(uris, ev->body.type)) {
-			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
-			if (obj->body.otype == uris->patch_Set) {
-				// Received a set message, send it to the worker.
-				lv2_log_trace(&self->logger, "Queueing set message\n");
-				self->schedule->schedule_work(self->schedule->handle,
-				                              lv2_atom_total_size(&ev->body),
-				                              &ev->body);
-			} else {
-				lv2_log_trace(&self->logger,
-				              "Unknown object type %d\n", obj->body.otype);
-			}
-		} else {
-			lv2_log_trace(&self->logger,
-			              "Unknown event type %d\n", ev->body.type);
+	if (instrument)
+	{
+		for (unsigned voice_index = 0, max_voice_index = instrument->m_voices.size(); voice_index < max_voice_index; ++voice_index)
+		{
+			float *trigger_buffer = instrument->m_voices[voice_index].m_port_buffers_raw[0];
+			std::fill
+			(
+				trigger_buffer,
+				trigger_buffer + buffer_size,
+				0.0f
+			);
+
+			float *gate_buffer = instrument->m_voices[voice_index].m_port_buffers_raw[1];
+			std::fill
+			(
+				gate_buffer,
+				gate_buffer + buffer_size,
+				0.0f
+			);
+
+			float *velocity_buffer = instrument->m_voices[voice_index].m_port_buffers_raw[2];
+			std::fill
+			(
+				velocity_buffer,
+				velocity_buffer + buffer_size,
+				1.0f
+			);
+
+			float *freq_buffer = instrument->m_voices[voice_index].m_port_buffers_raw[3];
+			std::fill
+			(
+				freq_buffer,
+				freq_buffer + buffer_size,
+				440.0f
+			);
 		}
 	}
+
+	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
+
+	unsigned chunk_index = 0;
+	for (unsigned frame_index = 0; frame_index < sample_count; ++frame_index)
+	{
+		unsigned frame_in_chunk = frame_index % buffer_size;
+
+		while(false == lv2_atom_sequence_is_end(&(self->control_port)->body, sizeof(LV2_Atom_Event), ev) && ev->time.frames == frame_index)
+		{
+			self->frame_offset = ev->time.frames;
+			if (ev->body.type == uris->midi_Event) {
+				if (instrument)
+				{
+					const uint8_t* const msg = (const uint8_t*)(ev + 1);
+					switch (lv2_midi_message_type(msg)) {
+					case LV2_MIDI_MSG_NOTE_ON:
+					{
+						unsigned the_voice = oldest_voice(instrument, ev->time.frames);
+						instrument->m_voices[the_voice].m_port_buffers_raw[0][frame_in_chunk] = 1;
+						instrument->m_voices[the_voice].m_gate = 1;
+						break;
+					}
+					default:
+						break;
+					}
+				}
+			} else if (is_object_type(uris, ev->body.type)) {
+				const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
+				if (obj->body.otype == uris->patch_Set) {
+					// Received a set message, send it to the worker.
+					lv2_log_trace(&self->logger, "Queueing set message\n");
+					self->schedule->schedule_work(self->schedule->handle,
+					                              lv2_atom_total_size(&ev->body),
+					                              &ev->body);
+				} else {
+					lv2_log_trace(&self->logger,
+					              "Unknown object type %d\n", obj->body.otype);
+				}
+			} else {
+				lv2_log_trace(&self->logger,
+				              "Unknown event type %d\n", ev->body.type);
+			}
+			ev = lv2_atom_sequence_next(ev);
+		}
+		if (0 == (frame_index + 1) % buffer_size || sample_count == frame_index + 1)
+		{
+			process(self, frame_index % buffer_size, frame_index - chunk_index * buffer_size);
+			++chunk_index;
+		}
+	}
+
+	// Read incoming events
+	LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) {
+	}
 	
-	process(self, sample_count, 0);
+	//process(self, sample_count, 0);
 #if 0
 	// Render the sample (possibly already in progress)
 	if (self->play) {
@@ -729,8 +819,10 @@ run(LV2_Handle instance,
 		output[pos] = 0.0f;
 	}
 #endif
-
-	instrument->m_frame += sample_count;
+	if (instrument)
+	{
+		instrument->m_frame += sample_count;
+	}
 }
 
 static LV2_State_Status
@@ -777,7 +869,7 @@ restore(LV2_Handle                  instance,
 {
 	std::cout << "Restoring instrument settings..." << std::endl;
 	
-	stacktrace(std::cout, 15);
+	// stacktrace(std::cout, 15);
 
 	Instrument* self = (Instrument*)instance;
 

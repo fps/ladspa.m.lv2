@@ -69,9 +69,6 @@
 		lv2:index 5 ;
 		lv2:symbol "out2" ;
 		lv2:name "Out2"
-	] ;
-	state:state [
-		<http://fps.io/lv2-plugins/ladspa.m.instrument#instrument_pb> <click.wav>
 	] .
 
 <http://fps.io/lv2-plugins/ladspa.m.instrument#ui>
