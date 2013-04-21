@@ -1,6 +1,6 @@
 .PHONY: all
 
 all:
-	CXXFLAGS="-fPIC -Wall" ./waf configure
-	CXXFLAGS="-fPIC -Wall" ./waf -v
+	CXXFLAGS="-fPIC -Wall -O3 -march=native" ./waf configure
+	CXXFLAGS="-fPIC -Wall -O3 -march=native" ./waf -v
 

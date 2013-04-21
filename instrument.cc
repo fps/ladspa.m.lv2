@@ -685,6 +685,11 @@ static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
+	// Short circuit for a very unprobable case
+	if (0 == sample_count)
+	{
+		return;
+	}
 	// std::cout << ".";
 	
 	Instrument*     self        = (Instrument*)instance;
@@ -774,7 +779,6 @@ run(LV2_Handle instance,
 	}
 
 	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
-
 	
 	unsigned chunk_index = 0;
 	for (unsigned frame_index = 0; frame_index < sample_count; ++frame_index)
@@ -783,7 +787,7 @@ run(LV2_Handle instance,
 
 		while(false == lv2_atom_sequence_is_end(&(self->control_port)->body, self->control_port->atom.size, ev) && ev->time.frames == frame_index)
 		{
-			std::cout << "ev" << std::endl;
+			//std::cout << "ev" << std::endl;
 			self->frame_offset = ev->time.frames;
 			
 			if (ev->body.type == uris->midi_Event) 
@@ -798,7 +802,7 @@ run(LV2_Handle instance,
 							const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
 							const uint8_t *velocity = (const uint8_t*)(ev + 1) + 2;
 							
-							std::cout << (int)*note << std::endl;
+							// std::cout << (int)*note << std::endl;
 							unsigned the_voice = oldest_voice(instrument, ev->time.frames + instrument->m_frame);
 							// std::cout << the_voice << std::endl;
 							instrument->m_voices[the_voice].m_note = *note;
