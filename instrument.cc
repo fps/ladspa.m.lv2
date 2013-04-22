@@ -855,7 +855,7 @@ run(LV2_Handle instance,
 						const uint8_t *controller = (const uint8_t*)(ev + 1) + 1;
 						const uint8_t *value = (const uint8_t*)(ev + 1) + 2;
 						
-						std::cout << "controller " << (int)*controller << " " << (int)*value << std::endl;
+						// std::cout << "controller " << (int)*controller << " " << (int)*value << std::endl;
 						if 
 						(
 							0 == *value && 
@@ -869,7 +869,7 @@ run(LV2_Handle instance,
 							)
 						)
 						{
-							std::cout << "all notes off" << std::endl;
+							// std::cout << "all notes off" << std::endl;
 							for (int voice_index = 0; voice_index < number_of_voices; ++voice_index)
 							{
 								instrument->m_voices[voice_index].m_gate = 0;
