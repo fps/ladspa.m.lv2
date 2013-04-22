@@ -49,7 +49,7 @@
 #include <execinfo.h>
 #include <cxxabi.h>
 
-const unsigned buffer_size = 1024;
+const unsigned buffer_size = 256;
 
 static std::string
 symbol_demangle (const std::string& l)
@@ -774,11 +774,42 @@ run(LV2_Handle instance,
 
 	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
 	
+	unsigned number_of_chunks = sample_count / buffer_size;
+	unsigned remainder = sample_count % buffer_size;
+	
 	unsigned chunk_index = 0;
 	for (unsigned frame_index = 0; frame_index < sample_count; ++frame_index)
 	{
 		unsigned frame_in_chunk = frame_index % buffer_size;
 
+		if (0 == frame_in_chunk)
+		{
+			unsigned number_of_frames_to_fill = buffer_size;
+			
+			if (chunk_index == number_of_chunks - 1)
+			{
+				number_of_frames_to_fill = sample_count - buffer_size * chunk_index;
+			}
+			
+			for 
+			(
+				int voice_index = 0; 
+				voice_index < number_of_voices; 
+				++voice_index
+			)
+			{
+				std::vector<float *> &buffers = instrument->m_voices[voice_index].m_port_buffers_raw;
+				
+				float *trigger_buffer = buffers[0];
+				std::fill
+				(
+					trigger_buffer,
+					trigger_buffer + number_of_frames_to_fill,
+					0.0f
+				);
+			}
+		}
+		
 		while(false == lv2_atom_sequence_is_end(&(self->control_port)->body, self->control_port->atom.size, ev) && ev->time.frames == frame_index)
 		{
 			//std::cout << "ev" << std::endl;
