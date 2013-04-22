@@ -562,6 +562,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 	lv2_atom_forge_init(&self->forge, self->map);
 	lv2_log_logger_init(&self->logger, self->map, self->log);
 
+	//self->instrument = load_instrument(self, "/home/fps/src/projects/ladspam.proto/example_instrument.pb");
 	self->instrument = 0;
 	self->samplerate = rate;
 	self->input_ports.resize(2);
@@ -752,7 +753,7 @@ run(LV2_Handle instance,
 		return;
 	}
 	
-	int number_of_voices = instrument ? instrument->m_voices.size() : 0;
+	int number_of_voices = instrument->m_voices.size();
 
 	for 
 	(
@@ -775,7 +776,6 @@ run(LV2_Handle instance,
 	LV2_Atom_Event *ev = lv2_atom_sequence_begin(&(self->control_port)->body);
 	
 	unsigned number_of_chunks = sample_count / buffer_size;
-	unsigned remainder = sample_count % buffer_size;
 	
 	unsigned chunk_index = 0;
 	for (unsigned frame_index = 0; frame_index < sample_count; ++frame_index)
@@ -788,7 +788,7 @@ run(LV2_Handle instance,
 			
 			if (chunk_index == number_of_chunks - 1)
 			{
-				number_of_frames_to_fill = sample_count - buffer_size * chunk_index;
+				number_of_frames_to_fill = sample_count % buffer_size;
 			}
 			
 			for 
@@ -836,6 +836,7 @@ run(LV2_Handle instance,
 						instrument->m_voices[the_voice].m_start_frame = instrument->m_frame + ev->time.frames;
 						break;
 					}
+					
 					case LV2_MIDI_MSG_NOTE_OFF:
 					{
 						const uint8_t *note = (const uint8_t*)(ev + 1) + 1;
@@ -846,6 +847,36 @@ run(LV2_Handle instance,
 						{
 							instrument->m_voices[the_voice].m_gate = 0;
 						}
+						break;
+					}
+					
+					case LV2_MIDI_MSG_CONTROLLER:
+					{
+						const uint8_t *controller = (const uint8_t*)(ev + 1) + 1;
+						const uint8_t *value = (const uint8_t*)(ev + 1) + 2;
+						
+						std::cout << "controller " << (int)*controller << " " << (int)*value << std::endl;
+						if 
+						(
+							0 == *value && 
+							(
+								120 == *controller || 
+								123 == *controller ||
+								124 == *controller ||
+								125 == *controller ||
+								126 == *controller ||
+								127 == *controller
+							)
+						)
+						{
+							std::cout << "all notes off" << std::endl;
+							for (int voice_index = 0; voice_index < number_of_voices; ++voice_index)
+							{
+								instrument->m_voices[voice_index].m_gate = 0;
+								instrument->m_voices[voice_index].m_on_velocity = 0;
+							}
+						}
+						break;
 					}
 					default:
 						break;
