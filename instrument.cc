@@ -584,50 +584,11 @@ cleanup(LV2_Handle instance)
 static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 {
 	//std::cout << nframes << " " << offset << std::endl;
-	
-	unsigned number_of_chunks = nframes / buffer_size;
-	unsigned remainder = nframes % buffer_size;
-	
 	unsigned number_of_input_ports = 
 		std::min<unsigned>(2, instrument->instrument->m_exposed_input_port_buffers.size());
 	
 	unsigned number_of_output_ports = 
 		std::min<unsigned>(2, instrument->instrument->m_exposed_output_port_buffers.size());
-	
-	for (unsigned chunk_index = 0; chunk_index < number_of_chunks; ++chunk_index)
-	{
-		for 
-		(
-			unsigned port_index = 0; 
-			port_index < number_of_input_ports; 
-			++port_index
-		)
-		{
-			std::copy
-			(
-				instrument->input_ports[port_index] + offset + chunk_index * buffer_size, 
-				instrument->input_ports[port_index] + offset + chunk_index * buffer_size + buffer_size, 
-				instrument->instrument->m_exposed_input_port_buffers[port_index]->begin()
-			);
-		}
-		
-		instrument->instrument->m_synth->process(buffer_size);
-		
-		for 
-		(
-			unsigned port_index = 0; 
-			port_index < number_of_output_ports; 
-			++port_index
-		)
-		{
-			std::copy
-			(
-				instrument->instrument->m_exposed_output_port_buffers[port_index]->begin(),
-				instrument->instrument->m_exposed_output_port_buffers[port_index]->begin() + buffer_size,
-				instrument->output_ports[port_index] + offset + chunk_index * buffer_size
-			);
-		}
-	}
 	
 	for 
 	(
@@ -638,14 +599,14 @@ static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 	{
 		std::copy
 		(
-			instrument->input_ports[port_index] + offset + number_of_chunks * buffer_size, 
-			instrument->input_ports[port_index] + offset + number_of_chunks * buffer_size + remainder, 
+			instrument->input_ports[port_index] + offset, 
+			instrument->input_ports[port_index] + offset + nframes, 
 			instrument->instrument->m_exposed_input_port_buffers[port_index]->begin()
 		);
 	}
 	
-	instrument->instrument->m_synth->process(remainder);
-
+	instrument->instrument->m_synth->process(nframes);
+	
 	for 
 	(
 		unsigned port_index = 0; 
@@ -656,8 +617,8 @@ static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 		std::copy
 		(
 			instrument->instrument->m_exposed_output_port_buffers[port_index]->begin(),
-			instrument->instrument->m_exposed_output_port_buffers[port_index]->begin() + remainder,
-			instrument->output_ports[port_index] + offset + number_of_chunks * buffer_size
+			instrument->instrument->m_exposed_output_port_buffers[port_index]->begin() + nframes,
+			instrument->output_ports[port_index] + offset
 		);
 	}
 }
