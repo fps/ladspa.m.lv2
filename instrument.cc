@@ -372,9 +372,9 @@ load_instrument(Instrument* self, const char* path)
 		}
 		instrument->m_current_voice = 0;
 
-		for (int connection_index = 0; connection_index < instrument_pb.connections_size(); ++connection_index)
+		for (int connection_index = 0; connection_index < instrument_pb.voice_connections_size(); ++connection_index)
 		{
-			ladspam_pb::Connection connection = instrument_pb.connections(connection_index);
+			ladspam_pb::Connection connection = instrument_pb.voice_connections(connection_index);
 
 			synth->connect
 			(
