@@ -28,6 +28,7 @@
 #include <ladspam.pb.h>
 #include <fstream>
 #include <vector>
+#include <map>
 #include <boost/shared_ptr.hpp>
 #include <boost/iterator/iterator_concepts.hpp>
 #include <stdint.h>
@@ -239,6 +240,11 @@ struct MInstrument {
 	std::string m_path;
 	unsigned m_frame;
 	
+	std::vector<float> m_cc_values;
+	std::map<unsigned, int> m_cc_controller_mappings;
+	std::vector<ladspam::synth::buffer_ptr> m_cc_buffers;
+	std::vector<float *> m_cc_buffers_raw;
+	
 	MInstrument() : m_current_voice(0), m_frame(0) { }
 };
 
@@ -372,9 +378,14 @@ load_instrument(Instrument* self, const char* path)
 		}
 		instrument->m_current_voice = 0;
 
-		for (int connection_index = 0; connection_index < instrument_pb.voice_connections_size(); ++connection_index)
+		for 
+		(
+			int connection_index = 0; 
+			connection_index < instrument_pb.voice_connections_size(); ++connection_index
+		)
 		{
-			ladspam_pb::Connection connection = instrument_pb.voice_connections(connection_index);
+			ladspam_pb::Connection connection 
+				= instrument_pb.voice_connections(connection_index);
 
 			synth->connect
 			(
@@ -383,6 +394,31 @@ load_instrument(Instrument* self, const char* path)
 				instrument->m_voices[connection.source_index()].m_port_buffers[connection.source_port_index()]
 			);
 		}
+		
+		for
+		(
+			int cc_index = 0;
+			cc_index < instrument_pb.control_connections_size();
+			++cc_index
+		)
+		{
+			ladspam_pb::Connection connection 
+				= instrument_pb.control_connections(cc_index);
+			
+				ladspam::synth::buffer_ptr buffer(new ladspam::synth::buffer(buffer_size));
+				
+				//! TODO: Create only a new buffer for the first time
+				//! A CC index has shown up.
+				instrument->m_cc_buffers.push_back(buffer);
+				
+				instrument->m_cc_buffers_raw.push_back(&(*buffer.get())[0]);
+				
+				instrument->m_cc_values.push_back(0);
+				instrument->m_cc_controller_mappings[connection.source_port_index()] = cc_index;
+				
+				synth->connect(connection.sink_index(), connection.sink_port_index(), buffer);
+		}
+		
 		
 		instrument->m_synth = synth;
 		instrument->m_path  = path;
@@ -641,7 +677,7 @@ unsigned oldest_voice(MInstrument *instrument, unsigned frame)
 	
 	int number_of_voices = instrument->m_voices.size();
 	
-	for (unsigned voice_index = 0; voice_index < number_of_voices; ++voice_index)
+	for (int voice_index = 0; voice_index < number_of_voices; ++voice_index)
 	{
 		voice &current_voice = instrument->m_voices[voice_index];
 		
@@ -838,6 +874,13 @@ run(LV2_Handle instance,
 						const uint8_t *controller = (const uint8_t*)(ev + 1) + 1;
 						const uint8_t *value = (const uint8_t*)(ev + 1) + 2;
 						
+						if (instrument->m_cc_controller_mappings.find(*controller) != instrument->m_cc_controller_mappings.end())
+						{
+							int cc_index = instrument->m_cc_controller_mappings[*controller];
+
+							instrument->m_cc_values[cc_index] = (*value) / 127.0;
+						}
+						
 						// std::cout << "controller " << (int)*controller << " " << (int)*value << std::endl;
 						if 
 						(
@@ -881,6 +924,19 @@ run(LV2_Handle instance,
 			instrument->m_voices[voice_index].m_port_buffers_raw[2][frame_in_chunk] = instrument->m_voices[voice_index].m_on_velocity;
 
 			instrument->m_voices[voice_index].m_port_buffers_raw[3][frame_in_chunk] = instrument->m_voices[voice_index].m_note_frequency;
+		}
+		
+		int number_of_controllers = instrument->m_cc_buffers.size();
+		
+		for 
+		(
+			int controller_index = 0; 
+			controller_index < number_of_controllers; 
+			++controller_index
+		)
+		{
+			instrument->m_cc_buffers_raw[controller_index][frame_in_chunk] 
+				= instrument->m_cc_values[controller_index];
 		}
 		
 		// Did we reach the end of a chunk or the last of the sample_count?
