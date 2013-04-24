@@ -631,17 +631,37 @@ float note_frequency(unsigned int note)
 
 unsigned oldest_voice(MInstrument *instrument, unsigned frame)
 {
-	unsigned long minimum_age = frame - instrument->m_voices[0].m_start_frame;
+	unsigned long minimum_age = 0;
 	unsigned oldest_index = 0;
 	
-	for (unsigned voice_index = 1; voice_index < instrument->m_voices.size(); ++voice_index)
+	unsigned long minimum_free_age = 0;
+	int oldest_free_index = 0;
+
+	bool found_free_voice = false;
+	
+	for (unsigned voice_index = 0; voice_index < instrument->m_voices.size(); ++voice_index)
 	{
-		unsigned long age = frame - instrument->m_voices[voice_index].m_start_frame;
+		voice &current_voice = instrument->m_voices[voice_index];
+		
+		unsigned long age = frame - current_voice.m_start_frame;
+		
 		if (age > minimum_age)
 		{
 			oldest_index = voice_index;
 			minimum_age = age;
 		}
+	
+		if (0 == current_voice.m_gate && age > minimum_free_age)
+		{
+			found_free_voice = true;
+			oldest_free_index = voice_index;
+			minimum_free_age = age;
+		}
+	}
+	
+	if (true == found_free_voice)
+	{
+		return oldest_free_index;
 	}
 	
 	return oldest_index;

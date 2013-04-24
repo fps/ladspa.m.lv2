@@ -1,4 +1,4 @@
-.PHONY: all install
+.PHONY: all install clean
 
 all:
 	CXXFLAGS="-fPIC -Wall -O3 -march=native -msse -mfpmath=sse" ./waf configure
@@ -6,3 +6,7 @@ all:
 
 install:
 	./waf install
+
+clean:
+	./waf clean
+
