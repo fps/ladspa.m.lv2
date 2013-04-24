@@ -639,7 +639,9 @@ unsigned oldest_voice(MInstrument *instrument, unsigned frame)
 
 	bool found_free_voice = false;
 	
-	for (unsigned voice_index = 0; voice_index < instrument->m_voices.size(); ++voice_index)
+	int number_of_voices = instrument->m_voices.size();
+	
+	for (unsigned voice_index = 0; voice_index < number_of_voices; ++voice_index)
 	{
 		voice &current_voice = instrument->m_voices[voice_index];
 		
