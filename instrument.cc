@@ -1,5 +1,6 @@
 /*
-  ladspa.m.instrument plugin
+  ladspa.m.instrument lv2 plugin
+  
   Copyright 2011-2012 David Robillard <d@drobilla.net>
   Copyright 2011 Gabriel M. Beddingfield <gabriel@teuton.org>
   Copyright 2011 James Morris <jwm.art.net@gmail.com>
