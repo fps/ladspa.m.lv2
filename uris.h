@@ -1,6 +1,7 @@
 /*
-  LV2 Sampler Example Plugin
+  ladspa.m.instrument lv2 plugin
   Copyright 2011-2012 David Robillard <d@drobilla.net>
+  Copyright 2013-2014 Florian Paul Schmidt <mista.tapas@gmx.net>
 
   Permission to use, copy, modify, and/or distribute this software for any
   purpose with or without fee is hereby granted, provided that the above

@@ -1,6 +1,8 @@
 /*
-  LV2 Sampler Example Plugin UI
+  A Modular Synth Plugin (ladspa.m.instrument)
+
   Copyright 2011-2012 David Robillard <d@drobilla.net>
+  Copyright 2013-2014 Florian Paul Schmidt <mista.tapas@gmx.net>
 
   Permission to use, copy, modify, and/or distribute this software for any
   purpose with or without fee is hereby granted, provided that the above
@@ -16,7 +18,7 @@
 */
 
 /**
-   @file ui.c Sampler Plugin UI
+   @file ui.c ladspa.m.instrument UI
 */
 
 #include <stdlib.h>
@@ -32,7 +34,7 @@
 
 #include "./uris.h"
 
-#define SAMPLER_UI_URI "http://fps.io/lv2-plugins/ladspa.m.instrument#ui"
+#define INSTRUMENT_UI_URI "http://fps.io/lv2-plugins/ladspa.m.instrument#ui"
 
 typedef struct {
 	LV2_Atom_Forge forge;
@@ -181,7 +183,7 @@ extension_data(const char* uri)
 }
 
 static const LV2UI_Descriptor descriptor = {
-	SAMPLER_UI_URI,
+	INSTRUMENT_UI_URI,
 	instantiate,
 	cleanup,
 	port_event,
