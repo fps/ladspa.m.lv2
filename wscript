@@ -11,12 +11,10 @@ top = '.'
 out = 'build'
 
 def options(opt):
-    opt.load('compiler_c')
     opt.load('compiler_cxx')
     autowaf.set_options(opt)
 
 def configure(conf):
-    conf.load('compiler_c')
     conf.load('compiler_cxx')
     autowaf.configure(conf)
     autowaf.set_c99_mode(conf)
@@ -37,7 +35,7 @@ def build(bld):
     bundle = 'ladspa.m.lv2'
 
     # Make a pattern for shared objects without the 'lib' prefix
-    module_pat = re.sub('^lib', '', bld.env.cshlib_PATTERN)
+    module_pat = re.sub('^lib', '', bld.env.cxxshlib_PATTERN)
     module_ext = module_pat[module_pat.rfind('.'):]
 
     # Build manifest.ttl by substitution (for portable lib extension)
@@ -61,7 +59,7 @@ def build(bld):
         includes += ['../..']
 
     # Build plugin library
-    obj = bld(features     = 'c cxx cxxshlib cshlib',
+    obj = bld(features     = 'cxx cxxshlib',
               source       = 'instrument.cc',
               name         = 'instrument',
               target       = '%s/instrument' % bundle,
@@ -69,15 +67,15 @@ def build(bld):
               use          = 'SNDFILE LV2 LADSPAM',
               includes     = includes,
               lib          = 'ladspam.pb')
-    obj.env.cshlib_PATTERN = module_pat
+    obj.env.cxxshlib_PATTERN = module_pat
 
     # Build UI library
     if bld.is_defined('HAVE_GTK2'):
-        obj = bld(features     = 'c cxx cxxshlib cshlib',
-                  source       = 'instrument_ui.c',
+        obj = bld(features     = 'cxx cxxshlib',
+                  source       = 'instrument_ui.cc',
                   name         = 'instrument_ui',
                   target       = '%s/instrument_ui' % bundle,
                   install_path = '${LV2DIR}/%s' % bundle,
                   use          = 'GTK2 LV2',
                   includes     = includes)
-    obj.env.cshlib_PATTERN = module_pat
+    obj.env.cxxshlib_PATTERN = module_pat
