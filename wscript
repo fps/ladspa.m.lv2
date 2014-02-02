@@ -61,7 +61,7 @@ def build(bld):
         includes += ['../..']
 
     # Build plugin library
-    obj = bld(features     = 'c cshlib',
+    obj = bld(features     = 'c cxx cxxshlib cshlib',
               source       = 'instrument.cc',
               name         = 'instrument',
               target       = '%s/instrument' % bundle,
@@ -73,7 +73,7 @@ def build(bld):
 
     # Build UI library
     if bld.is_defined('HAVE_GTK2'):
-        obj = bld(features     = 'c cshlib',
+        obj = bld(features     = 'c cxx cxxshlib cshlib',
                   source       = 'instrument_ui.c',
                   name         = 'instrument_ui',
                   target       = '%s/instrument_ui' % bundle,
