@@ -23,7 +23,7 @@ def configure(conf):
     autowaf.display_header('Sampler Configuration')
 
     if not autowaf.is_child():
-        autowaf.check_pkg(conf, 'lv2', atleast_version='1.2.1', uselib_store='LV2')
+        autowaf.check_pkg(conf, 'lv2', atleast_version='1.1.0', uselib_store='LV2')
 
     autowaf.check_pkg(conf, 'ladspam-0', uselib_store='LADSPAM',
                       atleast_version='0.0.1', mandatory=True)
