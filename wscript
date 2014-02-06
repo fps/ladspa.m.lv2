@@ -69,13 +69,3 @@ def build(bld):
               lib          = 'ladspam.pb')
     obj.env.cxxshlib_PATTERN = module_pat
 
-    # Build UI library
-    if bld.is_defined('HAVE_GTK2'):
-        obj = bld(features     = 'cxx cxxshlib',
-                  source       = 'instrument_ui.cc',
-                  name         = 'instrument_ui',
-                  target       = '%s/instrument_ui' % bundle,
-                  install_path = '${LV2DIR}/%s' % bundle,
-                  use          = 'GTK2 LV2',
-                  includes     = includes)
-    obj.env.cxxshlib_PATTERN = module_pat
