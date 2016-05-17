@@ -26,7 +26,7 @@
 #    include <stdbool.h>
 #endif
 
-#include <ladspam-0/synth.h>
+#include <ladspa.m-1/synth.h>
 #include <ladspam.pb.h>
 #include <fstream>
 #include <vector>
