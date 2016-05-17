@@ -255,7 +255,8 @@ void expose_ports(MInstrument *instrument, ladspam_proto1::Synth synth_pb, ladsp
 {
 	for (int port_index = 0; port_index < synth_pb.exposed_ports_size(); ++port_index)
 	{
-		ladspam_proto1::Port port = synth_pb.exposed_ports(port_index);
+		ladspam_proto1::ExposedPort exposed_port = synth_pb.exposed_ports(port_index);
+		ladspam_proto1::Port port = exposed_port.port();
 		
 		ladspamm1::plugin_ptr the_plugin = the_synth->get_plugin(port.plugin_index())->the_plugin;
 		
