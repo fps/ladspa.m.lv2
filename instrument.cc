@@ -27,7 +27,7 @@
 #endif
 
 #include <ladspa.m-1/synth.h>
-#include <ladspam.pb.h>
+#include <ladspa.m.proto-1/ladspam1.pb.h>
 #include <fstream>
 #include <vector>
 #include <map>
@@ -135,14 +135,14 @@ enum {
 	INSTRUMENT_AUDIO_OUT2 = 5
 };
 
-ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sample_rate, unsigned control_period)
+ladspam1::synth_ptr build_synth(const ladspam_proto1::Synth& synth_pb, unsigned sample_rate, unsigned control_period)
 {
 	std::cout << "Building synth..." << std::endl;
-	ladspam::synth_ptr the_synth(new ladspam::synth(sample_rate, control_period));
+	ladspam1::synth_ptr the_synth(new ladspam1::synth(sample_rate, control_period));
 	
 	for (int plugin_index = 0; plugin_index < synth_pb.plugins_size(); ++plugin_index)
 	{
-		ladspam_pb::Plugin plugin_pb = synth_pb.plugins(plugin_index);
+		ladspam_proto1::Plugin plugin_pb = synth_pb.plugins(plugin_index);
 		
 		std::cout << "Adding plugin: " << the_synth->find_plugin_library(plugin_pb.label()) << " " << plugin_pb.label() << std::endl;
 		
@@ -154,7 +154,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 		
 		for (int value_index = 0; value_index < plugin_pb.values_size(); ++value_index)
 		{
-			ladspam_pb::Value value = plugin_pb.values(value_index);
+			ladspam_proto1::Value value = plugin_pb.values(value_index);
 			
 			the_synth->set_port_value(plugin_index, value.port_index(), value.value());
 		}
@@ -162,7 +162,7 @@ ladspam::synth_ptr build_synth(const ladspam_pb::Synth& synth_pb, unsigned sampl
 	
 	for (int connection_index = 0; connection_index < synth_pb.connections_size(); ++connection_index)
 	{
-		ladspam_pb::Connection connection_pb = synth_pb.connections(connection_index);
+		ladspam_proto1::Connection connection_pb = synth_pb.connections(connection_index);
 		
 		the_synth->connect
 		(
@@ -187,7 +187,7 @@ struct voice
 	unsigned m_off_velocity;
 	float m_note_frequency;
 	unsigned m_start_frame;
-	std::vector<ladspam::synth::buffer_ptr> m_port_buffers;
+	std::vector<ladspam1::synth::buffer_ptr> m_port_buffers;
 	std::vector<float *> m_port_buffers_raw;
 	
 	voice(unsigned control_period) :
@@ -200,7 +200,7 @@ struct voice
 	{
 		{
 			// Trigger
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			ladspam1::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
 			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
@@ -208,7 +208,7 @@ struct voice
 
 		{
 			// Gate
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			ladspam1::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
 			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
@@ -216,7 +216,7 @@ struct voice
 
 		{
 			// Velocity
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			ladspam1::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
 			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
@@ -224,7 +224,7 @@ struct voice
 
 		{
 			// Frequency
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>());
+			ladspam1::synth::buffer_ptr buffer(new std::vector<float>());
 			buffer->resize(control_period);
 			m_port_buffers.push_back(buffer);
 			m_port_buffers_raw.push_back(&(*buffer.get())[0]);
@@ -234,34 +234,34 @@ struct voice
 
 
 struct MInstrument {
-	ladspam::synth_ptr m_synth;
+	ladspam1::synth_ptr m_synth;
 	std::vector<voice> m_voices;
 	unsigned m_current_voice;
-	std::vector<ladspam::synth::buffer_ptr> m_exposed_input_port_buffers;
-	std::vector<ladspam::synth::buffer_ptr> m_exposed_output_port_buffers;
+	std::vector<ladspam1::synth::buffer_ptr> m_exposed_input_port_buffers;
+	std::vector<ladspam1::synth::buffer_ptr> m_exposed_output_port_buffers;
 	std::string m_path;
 	unsigned m_frame;
 	
 	std::vector<float> m_cc_values;
 	std::map<unsigned, int> m_cc_controller_mappings;
-	std::vector<ladspam::synth::buffer_ptr> m_cc_buffers;
+	std::vector<ladspam1::synth::buffer_ptr> m_cc_buffers;
 	std::vector<float *> m_cc_buffers_raw;
 	
 	MInstrument() : m_current_voice(0), m_frame(0) { }
 };
 
 
-void expose_ports(MInstrument *instrument, ladspam_pb::Synth synth_pb, ladspam::synth_ptr the_synth)
+void expose_ports(MInstrument *instrument, ladspam_proto1::Synth synth_pb, ladspam1::synth_ptr the_synth)
 {
 	for (int port_index = 0; port_index < synth_pb.exposed_ports_size(); ++port_index)
 	{
-		ladspam_pb::Port port = synth_pb.exposed_ports(port_index);
+		ladspam_proto1::Port port = synth_pb.exposed_ports(port_index);
 		
-		ladspamm::plugin_ptr the_plugin = the_synth->get_plugin(port.plugin_index())->the_plugin;
+		ladspamm1::plugin_ptr the_plugin = the_synth->get_plugin(port.plugin_index())->the_plugin;
 		
 		if (the_plugin->port_is_input(port.port_index()))
 		{
-			ladspam::synth::buffer_ptr buffer(new std::vector<float>);
+			ladspam1::synth::buffer_ptr buffer(new std::vector<float>);
 			
 			buffer->resize(the_synth->buffer_size());
 			
@@ -338,7 +338,7 @@ load_instrument(Instrument* self, const char* path)
 
 	std::cout << "Loading instrument " << path << std::endl;
 
-	ladspam_pb::Instrument instrument_pb;
+	ladspam_proto1::Instrument instrument_pb;
 
 	try 
 	{
@@ -369,7 +369,7 @@ load_instrument(Instrument* self, const char* path)
 	{
 		instrument  = new MInstrument;
 
-		ladspam::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, buffer_size);
+		ladspam1::synth_ptr synth = build_synth(instrument_pb.synth(), self->samplerate, buffer_size);
 		std::cout << "Succeeded to load instrument" << std::endl;
 
 		expose_ports(instrument, instrument_pb.synth(), synth);
@@ -386,7 +386,7 @@ load_instrument(Instrument* self, const char* path)
 			connection_index < instrument_pb.voice_connections_size(); ++connection_index
 		)
 		{
-			ladspam_pb::Connection connection 
+			ladspam_proto1::Connection connection 
 				= instrument_pb.voice_connections(connection_index);
 
 			synth->connect
@@ -404,10 +404,10 @@ load_instrument(Instrument* self, const char* path)
 			++cc_index
 		)
 		{
-			ladspam_pb::Connection connection 
+			ladspam_proto1::Connection connection 
 				= instrument_pb.control_connections(cc_index);
 			
-				ladspam::synth::buffer_ptr buffer(new ladspam::synth::buffer(buffer_size));
+				ladspam1::synth::buffer_ptr buffer(new ladspam1::synth::buffer(buffer_size));
 				
 				//! TODO: Create only a new buffer for the first time
 				//! A CC index has shown up.
