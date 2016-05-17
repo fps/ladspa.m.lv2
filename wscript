@@ -23,7 +23,7 @@ def configure(conf):
     if not autowaf.is_child():
         autowaf.check_pkg(conf, 'lv2', atleast_version='1.1.0', uselib_store='LV2')
 
-    autowaf.check_pkg(conf, 'ladspam-0', uselib_store='LADSPAM',
+    autowaf.check_pkg(conf, 'ladspa.m-1', uselib_store='LADSPAM',
                       atleast_version='0.0.1', mandatory=True)
     autowaf.check_pkg(conf, 'gtk+-2.0', uselib_store='GTK2',
                       atleast_version='2.18.0', mandatory=False)
@@ -66,6 +66,8 @@ def build(bld):
               install_path = '${LV2DIR}/%s' % bundle,
               use          = 'SNDFILE LV2 LADSPAM',
               includes     = includes,
-              lib          = 'ladspam.pb')
+              lib          = 'ladspa.m.proto-1')
+              #includes     = includes,
+              #lib          = 'ladspam.pb')
     obj.env.cxxshlib_PATTERN = module_pat
 
