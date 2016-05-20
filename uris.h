@@ -24,7 +24,7 @@
 #include "lv2/lv2plug.in/ns/ext/midi/midi.h"
 #include "lv2/lv2plug.in/ns/ext/state/state.h"
 
-#define INSTRUMENT_URI              "http://fps.io/lv2-plugins/ladspa.m.instrument"
+#define INSTRUMENT_URI              "http://fps.io/ladspa.m.lv2/instrument"
 #define INSTRUMENT__instrument      INSTRUMENT_URI "#instrument"
 #define INSTRUMENT__applyInstrument INSTRUMENT_URI "#applyInstrument"
 #define INSTRUMENT__freeInstrument  INSTRUMENT_URI "#freeInstrumen"

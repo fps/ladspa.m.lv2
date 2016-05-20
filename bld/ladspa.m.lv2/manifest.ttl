@@ -2,13 +2,13 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix ui:   <http://lv2plug.in/ns/extensions/ui#> .
 
-<http://fps.io/lv2-plugins/ladspa.m.instrument>
+<http://fps.io/ladspa.m.lv2/instrument>
 	a lv2:Plugin ;
 	lv2:binary <instrument.so> ;
 	rdfs:seeAlso <instrument.ttl> .
 
-<http://fps.io/lv2-plugins/ladspa.m.synth>
-	a lv2:Plugin ;
-	lv2:binary <synth.so> ;
-	rdfs:seeAlso <synth.ttl> .
+#<http://fps.io/ladspa.m.lv2/synth>
+#	a lv2:Plugin ;
+#	lv2:binary <synth.so> ;
+#	rdfs:seeAlso <synth.ttl> .
 
