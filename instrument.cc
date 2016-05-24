@@ -129,10 +129,8 @@ void stacktrace (std::ostream& out, int levels)
 enum {
 	INSTRUMENT_CONTROL    = 0,
 	INSTRUMENT_NOTIFY     = 1,
-	INSTRUMENT_AUDIO_IN1  = 2,
-	INSTRUMENT_AUDIO_IN2  = 3,
-	INSTRUMENT_AUDIO_OUT1 = 4,
-	INSTRUMENT_AUDIO_OUT2 = 5
+	INSTRUMENT_AUDIO_OUT1 = 2,
+	INSTRUMENT_AUDIO_OUT2 = 3
 };
 
 ladspam1::synth_ptr build_synth(const ladspam_proto1::Synth& synth_pb, unsigned sample_rate, unsigned control_period)
@@ -295,7 +293,6 @@ typedef struct {
 	// Ports
 	const LV2_Atom_Sequence* control_port;
 	LV2_Atom_Sequence*       notify_port;
-	std::vector<float*>      input_ports;
 	std::vector<float*>      output_ports;
 
 	// Forge frame for notify port (for writing worker replies)
@@ -337,7 +334,7 @@ load_instrument(Instrument* self, const char* path)
 {
 	// stacktrace(std::cout, 15);
 
-	std::cout << "Loading instrument " << path << std::endl;
+	std::cout << "Loading instrument: " << path << std::endl;
 
 	ladspam_proto1::Instrument instrument_pb;
 
@@ -510,6 +507,7 @@ work_response(LV2_Handle  instance,
               uint32_t    size,
               const void* data)
 {
+	std::cout << "work_response" << std::endl;
 	Instrument* self = (Instrument*)instance;
 
 	InstrumentMessage msg = { { sizeof(MInstrument*), self->uris.freeInstrument },
@@ -543,12 +541,6 @@ connect_port(LV2_Handle instance,
 	case INSTRUMENT_NOTIFY:
 		self->notify_port = (LV2_Atom_Sequence*)data;
 		break;
-	case INSTRUMENT_AUDIO_IN1:
-		self->input_ports[0] = (float*)data;
-		break;
-	case INSTRUMENT_AUDIO_IN2:
-		self->input_ports[1] = (float*)data;
-		break;
 	case INSTRUMENT_AUDIO_OUT1:
 		self->output_ports[0] = (float*)data;
 		break;
@@ -573,7 +565,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 	}
 	memset(self, 0, sizeof(Instrument));
 
-	lv2_log_trace(&self->logger, "Instrument coming up...\n");
+	std::cout << "ladspa.m.lv2/instrument coming up..." << std::endl;
 
 	
 	// Get host features
@@ -604,7 +596,6 @@ instantiate(const LV2_Descriptor*     descriptor,
 	//self->instrument = load_instrument(self, "/home/fps/src/projects/ladspam.proto/example_instrument.pb");
 	self->instrument = 0;
 	self->samplerate = rate;
-	self->input_ports.resize(2);
 	self->output_ports.resize(2);
 
 	return (LV2_Handle)self;
@@ -623,26 +614,8 @@ cleanup(LV2_Handle instance)
 static void process(Instrument *instrument, unsigned nframes, unsigned offset)
 {
 	//std::cout << nframes << " " << offset << std::endl;
-	unsigned number_of_input_ports = 
-		std::min<unsigned>(2, instrument->instrument->m_exposed_input_port_buffers.size());
-	
 	unsigned number_of_output_ports = 
 		std::min<unsigned>(2, instrument->instrument->m_exposed_output_port_buffers.size());
-	
-	for 
-	(
-		unsigned port_index = 0; 
-		port_index < number_of_input_ports; 
-		++port_index
-	)
-	{
-		std::copy
-		(
-			instrument->input_ports[port_index] + offset, 
-			instrument->input_ports[port_index] + offset + nframes, 
-			instrument->instrument->m_exposed_input_port_buffers[port_index]->begin()
-		);
-	}
 	
 	instrument->instrument->m_synth->process(nframes);
 	
@@ -752,14 +725,20 @@ run(LV2_Handle instance,
 	LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) 
 	{
 		self->frame_offset = ev->time.frames;
+		std::cout << "Run start: Each event" << std::endl;
+		//lv2_log_trace(&self->logger, "Each event...\n");
+
+		print_ev_type(uris, ev->body.type);
+
 		if (is_object_type(uris, ev->body.type)) 
 		{
+			std::cout << "is_object_type: " << ev->body.type << std::endl;
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
 			
 			if (obj->body.otype == uris->patch_Set) 
 			{
+				std::cout << "patch_Set" << std::endl;
 				/* Received a set message, send it to the worker. */
-				//print(self, self->uris.log_Trace, "Queueing set message\n");
 				self->schedule->schedule_work
 				(
 					self->schedule->handle,
@@ -772,6 +751,7 @@ run(LV2_Handle instance,
 
 	if (!instrument)
 	{
+		// std::cout << "No instrument.. returning" << std::endl;
 		return;
 	}
 	
@@ -839,6 +819,8 @@ run(LV2_Handle instance,
 			
 			if (ev->body.type == uris->midi_Event) 
 			{
+				std::cout << "Midi event" << std::endl;
+				
 				const uint8_t* const msg = (const uint8_t*)(ev + 1);
 				switch (lv2_midi_message_type(msg)) 
 				{
@@ -964,6 +946,7 @@ save(LV2_Handle                instance,
 
 	Instrument* self = (Instrument*)instance;
 	if (!self->instrument) {
+		std::cout << "No instrument to save" << std::endl;
 		return LV2_STATE_SUCCESS;
 	}
 
@@ -976,6 +959,7 @@ save(LV2_Handle                instance,
 
 	char* apath = map_path->abstract_path(map_path->handle, self->instrument->m_path.c_str());
 
+	std::cout << "apath: " << apath << std::endl;
 	store(handle,
 	      self->uris.instrument,
 	      apath,
@@ -1018,6 +1002,8 @@ restore(LV2_Handle                  instance,
 			free_instrument(self, self->instrument);
 		}
 		self->instrument = load_instrument(self, path);
+	} else {
+		std::cout << "No value" << std::endl;
 	}
 
 	return LV2_STATE_SUCCESS;

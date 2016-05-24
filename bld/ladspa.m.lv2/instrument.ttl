@@ -2,18 +2,19 @@
 @prefix doap:  <http://usefulinc.com/ns/doap#> .
 @prefix lv2:   <http://lv2plug.in/ns/lv2core#> .
 @prefix patch: <http://lv2plug.in/ns/ext/patch#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
 
 <http://fps.io/ladspa.m.lv2/instrument#instrument_pb>
-	a lv2:Parameter ;
-	rdfs:label "ladspa.m.proto" ;
+	a rdf:Property ;
+	rdfs:label "ladspa.m.proto file" ;
 	rdfs:range atom:Path .
 
 <http://fps.io/ladspa.m.lv2/instrument>
-	a lv2:Plugin ;
+	a lv2:InstrumentPlugin ;
 	doap:name "ladspa.m.instrument" ;
 	doap:license <http://opensource.org/licenses/isc> ;
 	lv2:project <http://lv2plug.in/ns/lv2> ;

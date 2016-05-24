@@ -25,7 +25,7 @@
 #include "lv2/lv2plug.in/ns/ext/state/state.h"
 
 #define INSTRUMENT_URI              "http://fps.io/ladspa.m.lv2/instrument"
-#define INSTRUMENT__instrument      INSTRUMENT_URI "#instrument"
+#define INSTRUMENT__instrument      INSTRUMENT_URI "#instrument_pb"
 #define INSTRUMENT__applyInstrument INSTRUMENT_URI "#applyInstrument"
 #define INSTRUMENT__freeInstrument  INSTRUMENT_URI "#freeInstrumen"
 
@@ -41,6 +41,7 @@ typedef struct {
 	LV2_URID freeInstrument;
 	LV2_URID midi_Event;
 	LV2_URID patch_Set;
+	LV2_URID patch_Message;
 	LV2_URID patch_property;
 	LV2_URID patch_value;
 } InstrumentURIs;
@@ -59,13 +60,79 @@ map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 	uris->instrument         = map->map(map->handle, INSTRUMENT__instrument);
 	uris->midi_Event         = map->map(map->handle, LV2_MIDI__MidiEvent);
 	uris->patch_Set          = map->map(map->handle, LV2_PATCH__Set);
+	uris->patch_Message          = map->map(map->handle, LV2_PATCH__Message);
 	uris->patch_property     = map->map(map->handle, LV2_PATCH__property);
 	uris->patch_value        = map->map(map->handle, LV2_PATCH__value);
 }
 
+static inline void
+print_ev_type(const InstrumentURIs *uris, LV2_URID type)
+{
+	if (type == uris->atom_Blank) {
+		std::cout << "blank" << std::endl;
+		return;
+	}
+	if (type == uris->atom_Path) {
+		std::cout << "path" << std::endl;
+		return;
+	}
+	if (type ==	uris->atom_Resource) {		
+		std::cout << "resource" << std::endl;
+		return;
+	}
+	if (type ==	uris->atom_Sequence) {			
+		std::cout << "sequence" << std::endl;
+		return;
+	}
+	if (type ==	uris->atom_URID) {			
+		std::cout << "urid" << std::endl;
+		return;
+	}
+	if (type ==	uris->atom_eventTransfer) {			
+		std::cout << "eventTransfer" << std::endl;
+		return;
+	}
+	if (type ==	uris->applyInstrument) {			
+		std::cout << "applyInstrument" << std::endl;
+		return;
+	}
+	if (type ==	uris->instrument) {			
+		std::cout << "instrument" << std::endl;
+		return;
+	}
+	if (type ==	uris->freeInstrument) {			
+		std::cout << "freeInstrument" << std::endl;
+		return;
+	}
+	if (type ==	uris->midi_Event) {			
+		std::cout << "midi_Event" << std::endl;
+		return;
+	}
+	if (type ==	uris->patch_Set) {			
+		std::cout << "patch_Set" << std::endl;
+		return;
+	}
+	if (type ==	uris->patch_Message) {			
+		std::cout << "patch_Message" << std::endl;
+		return;
+	}
+	if (type ==	uris->patch_property) {			
+		std::cout << "property" << std::endl;
+		return;
+	}
+	if (type ==	uris->patch_value) {			
+		std::cout << "value" << std::endl;
+		return;
+	}
+	
+	std::cout << "unknown type" << std::endl;
+}
+
+
 static inline bool
 is_object_type(const InstrumentURIs* uris, LV2_URID type)
 {
+	std::cout << "is_object_type" << std::endl;
 	return type == uris->atom_Resource
 		|| type == uris->atom_Blank;
 }
@@ -83,9 +150,10 @@ write_set_file(LV2_Atom_Forge*       forge,
                const char*           filename,
                const size_t          filename_len)
 {
+	std::cout << "write_set_file" << filename << std::endl;
 	LV2_Atom_Forge_Frame frame;
-	LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_blank(
-		forge, &frame, 1, uris->patch_Set);
+	LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+		forge, &frame, 0, uris->patch_Set);
 
 	lv2_atom_forge_property_head(forge, uris->patch_property, 0);
 	lv2_atom_forge_urid(forge, uris->instrument);
@@ -108,6 +176,7 @@ static inline const LV2_Atom*
 read_set_file(const InstrumentURIs*     uris,
               const LV2_Atom_Object*    obj)
 {
+	std::cout << "read_set_file" << std::endl;
 	if (obj->body.otype != uris->patch_Set) {
 		fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
 		return NULL;
