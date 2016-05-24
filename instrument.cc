@@ -54,78 +54,6 @@
 
 const unsigned buffer_size = 256;
 
-static std::string
-symbol_demangle (const std::string& l)
-{
-	int status;
-
-	try {
-		char* realname = abi::__cxa_demangle (l.c_str(), 0, 0, &status);
-		std::string d (realname);
-		free (realname);
-	return d;
-	} catch (std::exception) {
-
-	}
-
-	return l;
-}
-std::string demangle (std::string const & l)
-{
-	std::string::size_type const b = l.find_first_of ("(");
-
-	if (b == std::string::npos) 
-	{
-		return symbol_demangle (l);
-	}
-
-	std::string::size_type const p = l.find_last_of ("+");
-	if (p == std::string::npos) 
-	{
-		return symbol_demangle (l);
-	}
-
-	if ((p - b) <= 1) 
-	{
-		return symbol_demangle (l);
-	}
-
-	std::string const fn = l.substr (b + 1, p - b - 1);
-
-	return symbol_demangle (fn);
-}
-
-void stacktrace (std::ostream& out, int levels)
-{
-	void *array[200];
-	size_t size;
-	char **strings;
-	size_t i;
-		
-	size = backtrace (array, 200);
-
-	if (size) 
-	{
-		strings = backtrace_symbols (array, size);
-			
-		if (strings) 
-		{
-
-			for (i = 0; i < size && (levels == 0 || i < size_t(levels)); i++) 
-			{
-				out << " " << demangle (strings[i]) << std::endl;
-			}
-
-			free (strings);
-		}
-	} 
-	else 
-	{
-		out << "no stacktrace available!" << std::endl;
-	}
-}
-
-
 enum {
 	INSTRUMENT_CONTROL    = 0,
 	INSTRUMENT_NOTIFY     = 1,
@@ -589,7 +517,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 	}
 
 	// Map URIs and initialise forge/logger
-	map_sampler_uris(self->map, &self->uris);
+	map_uris(self->map, &self->uris);
 	lv2_atom_forge_init(&self->forge, self->map);
 	lv2_log_logger_init(&self->logger, self->map, self->log);
 
@@ -734,7 +662,7 @@ run(LV2_Handle instance,
 		{
 		//if (is_object_type(uris, ev->body.type)) 
 		//{
-			std::cout << "is_object_type: " << std::endl;
+			std::cout << "it is_object_type! " << std::endl;
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
 			print_ev_type(uris, obj->body.otype);
 			
@@ -748,6 +676,10 @@ run(LV2_Handle instance,
 					lv2_atom_total_size(&ev->body),
 					&ev->body
 				);
+			}
+			if (obj->body.otype == uris->patch_Get) 
+			{
+				std::cout << "patch_Get" << std::endl;
 			}
 		}
 	}
@@ -939,11 +871,14 @@ run(LV2_Handle instance,
 }
 
 static LV2_State_Status
-save(LV2_Handle                instance,
-     LV2_State_Store_Function  store,
-     LV2_State_Handle          handle,
-     uint32_t                  flags,
-     const LV2_Feature* const* features)
+save
+(
+	LV2_Handle                instance,
+	LV2_State_Store_Function  store,
+	LV2_State_Handle          handle,
+	uint32_t                  flags,
+	const LV2_Feature* const* features
+)
 {
 	std::cout << "Saving instrument settings..." << std::endl;
 
@@ -963,12 +898,15 @@ save(LV2_Handle                instance,
 	char* apath = map_path->abstract_path(map_path->handle, self->instrument->m_path.c_str());
 
 	std::cout << "apath: " << apath << std::endl;
-	store(handle,
-	      self->uris.instrument,
-	      apath,
-	      self->instrument->m_path.length() + 1,
-	      self->uris.atom_Path,
-	      LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+	store
+	(
+		handle,
+		self->uris.instrument,
+		apath,
+		self->instrument->m_path.length() + 1,
+		self->uris.atom_Path,
+		LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE
+	);
 
 	free(apath);
 
@@ -976,11 +914,14 @@ save(LV2_Handle                instance,
 }
 
 static LV2_State_Status
-restore(LV2_Handle                  instance,
-        LV2_State_Retrieve_Function retrieve,
-        LV2_State_Handle            handle,
-        uint32_t                    flags,
-        const LV2_Feature* const*   features)
+restore
+(
+	LV2_Handle instance,
+	LV2_State_Retrieve_Function retrieve,
+	LV2_State_Handle handle,
+	uint32_t flags,
+	const LV2_Feature* const* features
+)
 {
 	std::cout << "Restoring instrument settings..." << std::endl;
 	
@@ -1025,7 +966,8 @@ extension_data(const char* uri)
 	return NULL;
 }
 
-static const LV2_Descriptor descriptor = {
+static const LV2_Descriptor descriptor = 
+{
 	INSTRUMENT_URI,
 	instantiate,
 	connect_port,

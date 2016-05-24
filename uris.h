@@ -17,8 +17,7 @@
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
-#ifndef INSTRUMENT_URIS_H
-#define INSTRUMENT_URIS_H
+#pragma once
 
 #include "lv2/lv2plug.in/ns/ext/log/log.h"
 #include "lv2/lv2plug.in/ns/ext/midi/midi.h"
@@ -41,13 +40,14 @@ typedef struct {
 	LV2_URID freeInstrument;
 	LV2_URID midi_Event;
 	LV2_URID patch_Set;
+	LV2_URID patch_Get;
 	LV2_URID patch_Message;
 	LV2_URID patch_property;
 	LV2_URID patch_value;
 } InstrumentURIs;
 
 static inline void
-map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
+map_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 {
 	uris->atom_Blank         = map->map(map->handle, LV2_ATOM__Blank);
 	uris->atom_Path          = map->map(map->handle, LV2_ATOM__Path);
@@ -60,7 +60,8 @@ map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 	uris->instrument         = map->map(map->handle, INSTRUMENT__instrument);
 	uris->midi_Event         = map->map(map->handle, LV2_MIDI__MidiEvent);
 	uris->patch_Set          = map->map(map->handle, LV2_PATCH__Set);
-	uris->patch_Message          = map->map(map->handle, LV2_PATCH__Message);
+	uris->patch_Get          = map->map(map->handle, LV2_PATCH__Get);
+	uris->patch_Message      = map->map(map->handle, LV2_PATCH__Message);
 	uris->patch_property     = map->map(map->handle, LV2_PATCH__property);
 	uris->patch_value        = map->map(map->handle, LV2_PATCH__value);
 }
@@ -68,7 +69,7 @@ map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 static inline void
 print_ev_type(const InstrumentURIs *uris, LV2_URID type)
 {
-	std::cout << "what is it?" << std::endl;
+	std::cout << "what is it? ";
 	
 	if (type == uris->atom_Blank) {
 		std::cout << "blank" << std::endl;
@@ -114,6 +115,10 @@ print_ev_type(const InstrumentURIs *uris, LV2_URID type)
 		std::cout << "patch_Set" << std::endl;
 		return;
 	}
+	if (type ==	uris->patch_Get) {			
+		std::cout << "patch_Get" << std::endl;
+		return;
+	}
 	if (type ==	uris->patch_Message) {			
 		std::cout << "patch_Message" << std::endl;
 		return;
@@ -130,7 +135,7 @@ print_ev_type(const InstrumentURIs *uris, LV2_URID type)
 	std::cout << "unknown type" << std::endl;
 }
 
-
+/*
 static inline bool
 is_object_type(const InstrumentURIs* uris, LV2_URID type)
 {
@@ -138,6 +143,7 @@ is_object_type(const InstrumentURIs* uris, LV2_URID type)
 	return type == uris->atom_Resource
 		|| type == uris->atom_Blank;
 }
+*/
 
 /**
  * Write a message like the following to @p forge:
@@ -211,5 +217,3 @@ read_set_file(const InstrumentURIs*     uris,
 
 	return file_path;
 }
-
-#endif  /* INSTRUMENT_URIS_H */
