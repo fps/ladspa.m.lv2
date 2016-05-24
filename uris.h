@@ -68,6 +68,8 @@ map_sampler_uris(LV2_URID_Map* map, InstrumentURIs* uris)
 static inline void
 print_ev_type(const InstrumentURIs *uris, LV2_URID type)
 {
+	std::cout << "what is it?" << std::endl;
+	
 	if (type == uris->atom_Blank) {
 		std::cout << "blank" << std::endl;
 		return;
@@ -132,7 +134,7 @@ print_ev_type(const InstrumentURIs *uris, LV2_URID type)
 static inline bool
 is_object_type(const InstrumentURIs* uris, LV2_URID type)
 {
-	std::cout << "is_object_type" << std::endl;
+	std::cout << "is_object_type?" << std::endl;
 	return type == uris->atom_Resource
 		|| type == uris->atom_Blank;
 }

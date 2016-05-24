@@ -730,10 +730,13 @@ run(LV2_Handle instance,
 
 		print_ev_type(uris, ev->body.type);
 
-		if (is_object_type(uris, ev->body.type)) 
+		if (lv2_atom_forge_is_object_type(&self->forge, ev->body.type))
 		{
-			std::cout << "is_object_type: " << ev->body.type << std::endl;
+		//if (is_object_type(uris, ev->body.type)) 
+		//{
+			std::cout << "is_object_type: " << std::endl;
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
+			print_ev_type(uris, obj->body.otype);
 			
 			if (obj->body.otype == uris->patch_Set) 
 			{
