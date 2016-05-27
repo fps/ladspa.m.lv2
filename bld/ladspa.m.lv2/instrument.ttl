@@ -8,10 +8,15 @@
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
 
-<http://fps.io/ladspa.m.lv2/instrument#instrument_pb>
+<http://fps.io/ladspa.m.lv2/instrument#instrument_path>
 	a rdf:Property ;
-	rdfs:label "ladspa.m.proto file" ;
+	rdfs:label "ladspa.m.proto file path" ;
 	rdfs:range atom:Path .
+
+<http://fps.io/ladspa.m.lv2/instrument#instrument_chunk>
+	a rdf:Property ;
+	rdfs:label "ladspa.m.proto file chunk" ;
+	rdfs:range atom:Chunk .
 
 <http://fps.io/ladspa.m.lv2/instrument>
 	a lv2:InstrumentPlugin ;
@@ -19,12 +24,13 @@
 	doap:license <http://opensource.org/licenses/isc> ;
 	lv2:project <http://lv2plug.in/ns/lv2> ;
 	lv2:requiredFeature urid:map ,
-		work:schedule ;
+		urid:unmap , work:schedule ;
 	lv2:optionalFeature lv2:hardRTCapable ,
 		state:loadDefaultState ;
 	lv2:extensionData state:interface ,
 		work:interface ;
-	patch:writable <http://fps.io/ladspa.m.lv2/instrument#instrument_pb> ;
+	patch:writable <http://fps.io/ladspa.m.lv2/instrument#instrument_path> ,
+		<http://fps.io/ladspa.m.lv2/instrument#instrument_chunk> ;
 	lv2:port [
 		a lv2:InputPort ,
 			atom:AtomPort ;

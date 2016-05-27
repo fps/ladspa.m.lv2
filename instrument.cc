@@ -207,6 +207,7 @@ void expose_ports(MInstrument *instrument, ladspam_proto1::Synth synth_pb, ladsp
 typedef struct {
 	// Features
 	LV2_URID_Map*        map;
+	LV2_URID_Unmap*      unmap;
 	LV2_Worker_Schedule* schedule;
 	LV2_Log_Log*         log;
 
@@ -389,8 +390,10 @@ work(LV2_Handle                  instance,
 {
 	std::cout << "Loading instrument - work" << std::endl;
 	
-	Instrument*        self = (Instrument*)instance;
+	Instrument* self = (Instrument*)instance;
 	const LV2_Atom* atom = (const LV2_Atom*)data;
+	
+	print_urid(self->unmap, atom->type);
 	
 	if (atom->type == self->uris.freeInstrument) 
 	{
@@ -402,6 +405,9 @@ work(LV2_Handle                  instance,
 		// Handle set message (load sample).
 		const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
 
+		//print_ev_type(self->uris, data->body->type);
+		
+		// print_urid(self->unmap, obj->body.type);
 		// Get file path from message
 		const LV2_Atom* file_path = read_set_file(&self->uris, obj);
 		
@@ -500,6 +506,8 @@ instantiate(const LV2_Descriptor*     descriptor,
 	for (int i = 0; features[i]; ++i) {
 		if (!strcmp(features[i]->URI, LV2_URID__map)) {
 			self->map = (LV2_URID_Map*)features[i]->data;
+		} else if (!strcmp(features[i]->URI, LV2_URID__unmap)) {
+			self->unmap = (LV2_URID_Unmap*)features[i]->data;
 		} else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
 			self->schedule = (LV2_Worker_Schedule*)features[i]->data;
 		} else if (!strcmp(features[i]->URI, LV2_LOG__log)) {
@@ -656,7 +664,7 @@ run(LV2_Handle instance,
 		std::cout << "Run start: Each event" << std::endl;
 		//lv2_log_trace(&self->logger, "Each event...\n");
 
-		print_ev_type(uris, ev->body.type);
+		print_urid(self->unmap, ev->body.type);
 
 		if (lv2_atom_forge_is_object_type(&self->forge, ev->body.type))
 		{
@@ -664,7 +672,7 @@ run(LV2_Handle instance,
 		//{
 			std::cout << "it is_object_type! " << std::endl;
 			const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
-			print_ev_type(uris, obj->body.otype);
+			print_urid(self->unmap, obj->body.otype);
 			
 			if (obj->body.otype == uris->patch_Set) 
 			{
@@ -901,7 +909,7 @@ save
 	store
 	(
 		handle,
-		self->uris.instrument,
+		self->uris.instrument_path,
 		apath,
 		self->instrument->m_path.length() + 1,
 		self->uris.atom_Path,
@@ -935,7 +943,7 @@ restore
 
 	const void* value = retrieve(
 		handle,
-		self->uris.instrument,
+		self->uris.instrument_path,
 		&size, &type, &valflags);
 
 	if (value) {
